@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0b0d12">
+<meta name="description" content="De la Rue au Sommet — RPG de simulation de vie textuel. Commencez mendiant, finissez magnat.">
+<title>De la Rue au Sommet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Bebas+Neue&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎩</text></svg>">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="app" class="phone">
+
+  <!-- ══════════ EN-TÊTE / STATUT ══════════ -->
+  <header class="topbar" id="topbar">
+    <div class="topbar__row">
+      <div class="ident">
+        <div class="ident__avatar" id="avatar">🧍</div>
+        <div class="ident__txt">
+          <div class="ident__name" id="playerName">Inconnu</div>
+          <div class="ident__tier" id="playerTier">Sans-abri</div>
+        </div>
+      </div>
+      <div class="topbar__right">
+        <div class="wallet" id="wallet">0 €</div>
+        <div class="clock" id="clock">Jour 1 · Matin · 06h</div>
+      </div>
+    </div>
+
+    <div class="gauges" id="gauges"><!-- injecté --></div>
+
+    <div class="topbar__meta">
+      <span class="chip chip--rep" id="chipRep">🏙️ Rue 0 · ⚖️ Légal 0</span>
+      <span class="chip chip--heat" id="chipHeat">🚨 0%</span>
+      <span class="chip chip--home" id="chipHome">📦 Trottoir</span>
+    </div>
+  </header>
+
+  <!-- ══════════ ZONE CENTRALE ══════════ -->
+  <main class="screen" id="screen"><!-- injecté --></main>
+
+  <!-- ══════════ NAVIGATION ══════════ -->
+  <nav class="tabbar" id="tabbar">
+    <button class="tab is-active" data-tab="survie"><span>🥖</span><i>Survie</i></button>
+    <button class="tab" data-tab="travail"><span>💼</span><i>Travail</i></button>
+    <button class="tab" data-tab="social"><span>👥</span><i>Social</i></button>
+    <button class="tab" data-tab="sac"><span>🎒</span><i>Sac</i></button>
+    <button class="tab" data-tab="profil"><span>📈</span><i>Profil</i></button>
+  </nav>
+
+  <!-- Bouton flottant fin de journée -->
+  <button class="sleepfab" id="sleepFab" title="Terminer la journée">
+    <span class="sleepfab__ico">🌙</span>
+    <span class="sleepfab__lbl">Dormir</span>
+  </button>
+
+  <!-- Zone de toasts -->
+  <div class="toasts" id="toasts"></div>
+
+  <!-- Modale générique -->
+  <div class="modal" id="modal" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__box" role="dialog" aria-modal="true">
+      <div class="modal__head">
+        <span class="modal__ico" id="modalIco">❓</span>
+        <h2 class="modal__title" id="modalTitle">Titre</h2>
+      </div>
+      <div class="modal__body" id="modalBody"></div>
+      <div class="modal__actions" id="modalActions"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Écran de démarrage -->
+<div class="splash" id="splash">
+  <div class="splash__inner">
+    <div class="splash__logo">🎩</div>
+    <h1 class="splash__title">DE LA RUE<br><em>AU SOMMET</em></h1>
+    <p class="splash__sub">Vous n'avez rien. Pas même un nom qu'on retient.<br>Il vous reste le temps, et ce que vous en ferez.</p>
+
+    <div class="splash__form" id="splashForm">
+      <label class="field">
+        <span>Votre nom</span>
+        <input type="text" id="inputName" maxlength="18" placeholder="Ex. Sam Bertrand" autocomplete="off">
+      </label>
+      <div class="field">
+        <span>Origine <small>(votre point de départ)</small></span>
+        <div class="origins" id="origins"></div>
+      </div>
+    </div>
+
+    <button class="btn btn--gold btn--xl" id="btnNew">Commencer une nouvelle vie</button>
+    <button class="btn btn--ghost" id="btnContinue" hidden>Reprendre la partie</button>
+    <p class="splash__credit">Sauvegarde automatique locale · Jouable hors-ligne</p>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/state.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/events.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
