@@ -28,17 +28,15 @@
       </div>
       <div class="topbar__right">
         <div class="wallet" id="wallet">0 €</div>
-        <div class="clock" id="clock">Jour 1 · Matin · 06h</div>
+        <div class="wallet__sub" id="walletSub"></div>
       </div>
     </div>
 
+    <div class="clock" id="clock">Jour 1 · Matin · 06h</div>
+
     <div class="gauges" id="gauges"><!-- injecté --></div>
 
-    <div class="topbar__meta">
-      <span class="chip chip--rep" id="chipRep">🏙️ Rue 0 · ⚖️ Légal 0</span>
-      <span class="chip chip--heat" id="chipHeat">🚨 0%</span>
-      <span class="chip chip--home" id="chipHome">📦 Trottoir</span>
-    </div>
+    <div class="topbar__meta" id="topMeta"><!-- injecté --></div>
   </header>
 
   <!-- ══════════ ZONE CENTRALE ══════════ -->
@@ -48,6 +46,8 @@
   <nav class="tabbar" id="tabbar">
     <button class="tab is-active" data-tab="survie"><span>🥖</span><i>Survie</i></button>
     <button class="tab" data-tab="travail"><span>💼</span><i>Travail</i></button>
+    <button class="tab" data-tab="milieu"><span>🕶️</span><i>Milieu</i></button>
+    <button class="tab" data-tab="finance"><span>🏦</span><i>Finance</i></button>
     <button class="tab" data-tab="social"><span>👥</span><i>Social</i></button>
     <button class="tab" data-tab="sac"><span>🎒</span><i>Sac</i></button>
     <button class="tab" data-tab="profil"><span>📈</span><i>Profil</i></button>
@@ -56,7 +56,7 @@
   <!-- Bouton flottant fin de journée -->
   <button class="sleepfab" id="sleepFab" title="Terminer la journée">
     <span class="sleepfab__ico">🌙</span>
-    <span class="sleepfab__lbl">Dormir</span>
+    <span class="sleepfab__lbl">Terminer</span>
   </button>
 
   <!-- Zone de toasts -->
@@ -65,7 +65,7 @@
   <!-- Modale générique -->
   <div class="modal" id="modal" hidden>
     <div class="modal__backdrop" data-close></div>
-    <div class="modal__box" role="dialog" aria-modal="true">
+    <div class="modal__box" id="modalBox" role="dialog" aria-modal="true">
       <div class="modal__head">
         <span class="modal__ico" id="modalIco">❓</span>
         <h2 class="modal__title" id="modalTitle">Titre</h2>
@@ -102,9 +102,16 @@
 </div>
 
 <script src="js/data.js"></script>
+<script src="js/data.actions.js"></script>
+<script src="js/data.crime.js"></script>
+<script src="js/data.work.js"></script>
+<script src="js/data.people.js"></script>
+<script src="js/data.finance.js"></script>
 <script src="js/state.js"></script>
 <script src="js/engine.js"></script>
+<script src="js/finance.js"></script>
 <script src="js/events.js"></script>
+<script src="js/probe.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>
 </body>

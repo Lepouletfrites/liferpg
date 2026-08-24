@@ -87,24 +87,26 @@
     hideSplash();
 
     if (st.over) { setTimeout(UI.gameOver, 600); return; }
+    if (st.jail) { setTimeout(function () { UI.jailScreen(st.jail.days, st.jail.reason); }, 600); return; }
 
     if (isNew) {
       setTimeout(function () {
         UI.modal({
           ico: '🌅', title: 'Jour 1',
           body: '<p>Il est 6 heures. Vous disposez de <em>16 heures</em> avant la nuit, ' +
-            'et chaque action en consomme une partie.</p>' +
-            '<p>Trois choses vous tueront si vous les négligez : la <em>faim</em>, la <em>santé</em>, et le <em>moral</em>. ' +
-            'Trois choses vous sortiront d’ici : l’<em>hygiène</em>, une <em>adresse</em>, et un <em>diplôme</em>.</p>' +
-            '<p>Le trottoir rapporte de quoi survivre. Il ne rapportera jamais de quoi partir. ' +
-            'Dès que vous le pouvez, investissez des heures dans autre chose que manger.</p>',
+            'et chaque action en consomme une partie. Après 22 h, vous pourrez choisir de <em>veiller</em> : ' +
+            'six heures de plus, plus rentables, plus dangereuses, et payées sur votre sommeil.</p>' +
+            '<p>Trois choses vous tueront si vous les négligez : la <em>faim</em>, la <em>santé</em>, le <em>moral</em>. ' +
+            'Trois choses vous sortiront d’ici : l’<em>hygiène</em>, une <em>adresse</em>, un <em>diplôme</em>. ' +
+            'Une quatrième vous y ramènera si vous en abusez : la <em>pression policière</em>.</p>' +
+            '<p><em>Appuyez longuement</em> sur n’importe quelle action pour ouvrir sa fiche détaillée : ' +
+            'plage de gains réelle, taux de réussite, risque pénal et statistiques qui l’influencent.</p>',
           actions: [{ l: 'Commencer', h: 'Bonne chance.', fn: null }]
         });
       }, 700);
     }
   }
 
-  /* Empêche la sauvegarde de sécurité de ressusciter la partie effacée */
   var wiping = false;
 
   MAIN.reset = function () {
@@ -119,7 +121,6 @@
   document.addEventListener('DOMContentLoaded', function () {
     bindSplash();
 
-    /* Empêche le zoom par double-tap sur iOS */
     var last = 0;
     document.addEventListener('touchend', function (e) {
       var now = Date.now();
@@ -127,7 +128,6 @@
       last = now;
     }, { passive: false });
 
-    /* Sauvegarde de sécurité quand on quitte la page */
     window.addEventListener('beforeunload', function () {
       if (!wiping && G.s) S.save(G.s);
     });
