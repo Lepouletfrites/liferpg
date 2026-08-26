@@ -183,6 +183,11 @@
     if (req.repLeg && s.rep.legale < req.repLeg) return 'Réputation légale ' + req.repLeg + ' requise';
     if (req.repPegre && s.rep.pegre < req.repPegre) return 'Réputation dans le milieu ' + req.repPegre + ' requise';
     if (req.edu && s.edu < req.edu) return 'Diplôme requis : ' + D.EDU[req.edu].n;
+    if (req.filiere && s.filiere !== req.filiere) return 'Filière requise : ' + D.FILIERE[req.filiere].n;
+    if (req.filiereLvl && s.filiereLvl < req.filiereLvl) {
+      var flabel = s.filiere ? D.FILIERE[s.filiere].n : (req.filiere ? D.FILIERE[req.filiere].n : 'Une filière');
+      return flabel + ' — ' + (D.FILIERE_TIER[req.filiereLvl - 1] || 'niveau ' + req.filiereLvl) + ' requis';
+    }
     if (req.addr && !S.home(s).addr) return 'Une adresse fixe est exigée';
     if (req.shower && !S.home(s).shower) return 'Nécessite un logement avec douche';
     if (req.bank && !s.bank.open) return 'Un compte bancaire est nécessaire';
@@ -626,34 +631,48 @@
   };
 
   /* =========================================================
-     10. Formation
+     10. Formation — tronc commun puis filière post-bac.
+     Le Bac et chaque niveau de filière se terminent par un examen
+     (probabiliste) plutôt qu'une simple accumulation de séances :
+     voir G.sitEduExam / G.sitFiliereExam.
      ========================================================= */
+  var OVERSTUDY_CAP = 10;     // séances "en trop" maximum prises en compte
+  var OVERSTUDY_BONUS = 2;    // % de chance gagné par séance en trop
+  G.OVERSTUDY_CAP = OVERSTUDY_CAP;
+
   G.eduLeft = function () { return this.s.edu + 1 < D.EDU.length; };
 
-  /** Valide n séances (utilisé par les cours nocturnes et les événements) */
-  G.eduSession = function (n) {
-    if (!this.eduLeft()) return;
-    var e = D.EDU[this.s.edu + 1];
-    this.s.eduProg += n;
-    if (this.s.eduProg >= e.sessions) {
-      this.s.edu++;
-      this.s.eduProg = 0;
-      this.rep('legale', 8);
-      this.xp('intelligence', 40);
-      this.toast('🎓 Diplôme obtenu : ' + e.short, 'xp');
-      this.log('<b>' + e.n + ' obtenu.</b> Une ligne de plus sur un CV qui n’existait pas.', 'good');
-      this.milestone('firstDiploma', '🎓 Premier diplôme',
-        'Vous avez terminé ' + e.n + '. Personne ne pourra vous le reprendre.');
+  /**
+   * Ajoute n séances au tronc commun (utilisé par les cours nocturnes et
+   * les événements). Fait progresser automatiquement les niveaux SANS
+   * examen (Remise à niveau, CAP) ; pour le Bac, se contente d'accumuler
+   * les séances — l'examen reste un choix explicite du joueur.
+   */
+  G.addEduProgress = function (n) {
+    var s = this.s;
+    while (n > 0 && this.eduLeft()) {
+      var e = D.EDU[s.edu + 1];
+      if (e.exam) { s.eduProg = Math.min(s.eduProg + n, e.sessions + OVERSTUDY_CAP); n = 0; break; }
+      var need = e.sessions - s.eduProg;
+      if (n >= need) {
+        n -= need; s.edu++; s.eduProg = 0;
+        this.rep('legale', 8); this.xp('intelligence', 40);
+        this.toast('🎓 Diplôme obtenu : ' + e.short, 'xp');
+        this.log('<b>' + e.n + ' obtenu.</b> Une ligne de plus sur un CV qui n’existait pas.', 'good');
+      } else { s.eduProg += n; n = 0; }
     }
   };
 
   G.study = function () {
     if (!this.eduLeft()) return;
-    var e = D.EDU[this.s.edu + 1];
+    var s = this.s, e = D.EDU[s.edu + 1];
     var r = this.checkReq(e.req);
     if (r) { NS.UI.toast(r, 'bad'); return; }
-    if (this.s.money < e.cost) { NS.UI.toast('Il faut ' + this.eur(e.cost) + ' par session', 'bad'); return; }
-    if (e.hours > S.hoursLeft(this.s)) { NS.UI.toast('Pas assez de temps', 'bad'); return; }
+    if (e.exam && s.eduProg >= e.sessions + OVERSTUDY_CAP) {
+      NS.UI.toast('Vous maîtrisez déjà largement le programme : tentez l’examen.', 'bad'); return;
+    }
+    if (s.money < e.cost) { NS.UI.toast('Il faut ' + this.eur(e.cost) + ' par session', 'bad'); return; }
+    if (e.hours > S.hoursLeft(s)) { NS.UI.toast('Pas assez de temps', 'bad'); return; }
 
     this.spendTime(e.hours);
     this.spendEnergy(e.energy);
@@ -661,12 +680,164 @@
 
     this.xp('intelligence', 14);
     this.add('moral', -2);
-    var before = this.s.edu;
-    this.eduSession(1);
-    if (this.s.edu === before) this.log('Session de ' + e.n + ' (' + this.s.eduProg + '/' + e.sessions + ').', 'neutral');
 
-    this.s.totals.actions++;
+    if (!e.exam) {
+      var before = s.edu;
+      this.addEduProgress(1);
+      if (s.edu === before) this.log('Session de ' + e.n + ' (' + s.eduProg + '/' + e.sessions + ').', 'neutral');
+    } else {
+      s.eduProg++;
+      if (s.eduProg >= e.sessions) {
+        this.log('Session de ' + e.n + ' (' + s.eduProg + '/' + e.sessions + '). <b>Vous pouvez tenter l’examen.</b>', 'good');
+      } else {
+        this.log('Session de ' + e.n + ' (' + s.eduProg + '/' + e.sessions + ').', 'neutral');
+      }
+    }
+
+    s.totals.actions++;
     this.afterAction(e);
+  };
+
+  /** Chance de réussite (0-100) à l'examen d'un niveau (tronc commun ou filière) */
+  G.examChance = function (level, prog, streakKey) {
+    var s = this.s;
+    var over = Math.min(OVERSTUDY_CAP, Math.max(0, prog - level.sessions));
+    var streak = s.examStreak[streakKey] || 0;
+    var p = level.examBase + this.lvl(level.stat || 'intelligence') * level.statW +
+      (s.gauges.moral - 50) * 0.3 + over * OVERSTUDY_BONUS + streak * 6;
+    return this.clamp(p, 6, 96);
+  };
+
+  G.canSitEduExam = function () {
+    if (!this.eduLeft()) return false;
+    var e = D.EDU[this.s.edu + 1];
+    return !!e.exam && this.s.eduProg >= e.sessions;
+  };
+
+  G.eduExamChance = function () {
+    if (!this.canSitEduExam()) return 0;
+    return this.examChance(D.EDU[this.s.edu + 1], this.s.eduProg, 'bac');
+  };
+
+  G.sitEduExam = function () {
+    if (!this.canSitEduExam()) return;
+    var s = this.s, e = D.EDU[s.edu + 1];
+    if (S.hoursLeft(s) < e.examHours) { NS.UI.toast('Pas assez de temps', 'bad'); return; }
+
+    this.spendTime(e.examHours);
+    this.spendEnergy(e.examEnergy);
+
+    var p = this.eduExamChance();
+    if (this.chance(p)) {
+      s.examStreak.bac = 0;
+      s.edu++; s.eduProg = 0;
+      this.rep('legale', 10); this.xp('intelligence', 50); this.add('moral', 10);
+      this.toast('🎓 Baccalauréat obtenu !', 'xp');
+      this.log('<b>Baccalauréat obtenu.</b> Le premier vrai mur vient de tomber.', 'good');
+      this.milestone('firstDiploma', '🎓 Le Baccalauréat',
+        'Vous avez réussi l’examen. Une filière entière s’ouvre désormais devant vous.');
+    } else {
+      s.examStreak.bac = (s.examStreak.bac || 0) + 1;
+      s.eduProg = Math.round(s.eduProg * 0.6);
+      this.add('moral', -12); this.add('sante', -3);
+      this.log('<b>Échec au baccalauréat.</b> Il faudra réviser encore avant de retenter votre chance.', 'bad');
+    }
+    s.totals.actions++;
+    this.afterAction(e);
+  };
+
+  /** Choisit une filière post-bac — choix définitif */
+  G.chooseFiliere = function (id) {
+    var s = this.s, f = D.FILIERE[id];
+    if (!f || s.filiere) return;
+    var r = this.checkReq(f.req);
+    if (r) { NS.UI.toast(r, 'bad'); return; }
+
+    s.filiere = id; s.filiereLvl = 0; s.filiereProg = 0;
+    this.rep('legale', 3);
+    this.log('<b>Filière choisie : ' + f.ico + ' ' + f.n + '.</b> ' + f.d, 'good');
+    this.milestone('firstFiliere', '🎓 Une voie choisie',
+      'Vous vous engagez dans ' + f.n + '. C’est un choix qu’on ne refait pas.');
+    if (!this._q) { NS.UI.refresh(); S.save(s); }
+  };
+
+  /** Le niveau de filière en cours d'étude, ou null si aucune filière / déjà achevée */
+  G.filiereLevel = function () {
+    var s = this.s;
+    if (!s.filiere) return null;
+    var f = D.FILIERE[s.filiere];
+    if (s.filiereLvl >= f.levels.length) return null;
+    return f.levels[s.filiereLvl];
+  };
+
+  G.studyFiliere = function () {
+    var lvl = this.filiereLevel();
+    if (!lvl) return;
+    var s = this.s;
+    var r = this.checkReq(lvl.req);
+    if (r) { NS.UI.toast(r, 'bad'); return; }
+    if (s.filiereProg >= lvl.sessions + OVERSTUDY_CAP) {
+      NS.UI.toast('Vous maîtrisez déjà largement le programme : tentez l’examen.', 'bad'); return;
+    }
+    if (s.money < lvl.cost) { NS.UI.toast('Il faut ' + this.eur(lvl.cost) + ' par session', 'bad'); return; }
+    if (lvl.hours > S.hoursLeft(s)) { NS.UI.toast('Pas assez de temps', 'bad'); return; }
+
+    this.spendTime(lvl.hours);
+    this.spendEnergy(lvl.energy);
+    if (lvl.cost) this.cash(-lvl.cost, 'Frais de scolarité');
+
+    s.filiereProg++;
+    this.xp('intelligence', 16);
+    this.add('moral', -2);
+
+    if (s.filiereProg >= lvl.sessions) {
+      this.log('Session de ' + lvl.n + ' (' + s.filiereProg + '/' + lvl.sessions + '). <b>Vous pouvez tenter l’examen.</b>', 'good');
+    } else {
+      this.log('Session de ' + lvl.n + ' (' + s.filiereProg + '/' + lvl.sessions + ').', 'neutral');
+    }
+    s.totals.actions++;
+    this.afterAction(lvl);
+  };
+
+  G.canSitFiliereExam = function () {
+    var lvl = this.filiereLevel();
+    return !!lvl && this.s.filiereProg >= lvl.sessions;
+  };
+
+  G.filiereExamChance = function () {
+    var lvl = this.filiereLevel();
+    if (!lvl || !this.canSitFiliereExam()) return 0;
+    return this.examChance(lvl, this.s.filiereProg, this.s.filiere + this.s.filiereLvl);
+  };
+
+  G.sitFiliereExam = function () {
+    if (!this.canSitFiliereExam()) return;
+    var s = this.s, f = D.FILIERE[s.filiere], lvl = this.filiereLevel();
+    if (S.hoursLeft(s) < lvl.examHours) { NS.UI.toast('Pas assez de temps', 'bad'); return; }
+
+    this.spendTime(lvl.examHours);
+    this.spendEnergy(lvl.examEnergy);
+
+    var key = s.filiere + s.filiereLvl;
+    var p = this.filiereExamChance();
+    if (this.chance(p)) {
+      s.examStreak[key] = 0;
+      s.filiereLvl++; s.filiereProg = 0;
+      this.rep('legale', 6 + s.filiereLvl * 2); this.xp('intelligence', 30 + s.filiereLvl * 15); this.add('moral', 14);
+      this.toast('🎓 ' + lvl.n + ' obtenu !', 'xp');
+      this.log('<b>' + lvl.n + ' obtenu.</b> De nouveaux postes viennent de s’ouvrir.', 'good');
+      this.milestone('filiere_' + s.filiere + '_' + s.filiereLvl, '🎓 ' + lvl.n,
+        s.filiereLvl >= f.levels.length
+          ? 'Vous achevez le parcours complet en ' + f.n + '. Le sommet de cette voie est désormais atteignable.'
+          : 'Un niveau de plus en ' + f.n + '. La suite sera encore plus exigeante.');
+    } else {
+      s.examStreak[key] = (s.examStreak[key] || 0) + 1;
+      s.filiereProg = Math.round(s.filiereProg * 0.55);
+      this.add('moral', -14); this.add('sante', -4);
+      this.log('<b>Échec à l’examen — ' + lvl.n + '.</b> Il faut recommencer une partie du programme.', 'bad');
+    }
+    s.totals.actions++;
+    this.afterAction(lvl);
   };
 
   /* =========================================================

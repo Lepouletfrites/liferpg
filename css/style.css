@@ -220,6 +220,31 @@ em{font-style:normal}
 .badge--own{background:var(--surface-3);color:var(--text-2);border:1px solid var(--line)}
 .badge--quest{background:var(--gold);color:#1a1200}
 
+/* Cartes suggérées : mises en avant en tête de l'onglet Survie */
+.cards--reco .card{border-color:color-mix(in srgb,var(--gold) 55%,var(--line-soft));background:color-mix(in srgb,var(--gold) 6%,var(--surface))}
+.cards--reco .card::before{background:var(--gold)}
+
+/* Options verrouillées : repliées par défaut pour ne pas noyer l'écran */
+.lockedGroup{margin-top:9px}
+.lockedGroup:not([open]) > *:not(summary){display:none}
+.lockedGroup summary{
+  display:flex;align-items:center;gap:8px;list-style:none;cursor:pointer;
+  min-height:40px;padding:9px 12px;border-radius:12px;
+  background:var(--surface);border:1px dashed var(--line);color:var(--text-3);
+  font-size:11.5px;font-weight:650;
+}
+.lockedGroup summary::-webkit-details-marker{display:none}
+.lockedGroup summary::after{content:'›';font-size:16px;margin-left:auto;transition:transform .2s;color:var(--text-3)}
+.lockedGroup[open] summary{border-style:solid;border-radius:12px 12px 0 0}
+.lockedGroup[open] summary::after{transform:rotate(90deg)}
+.lockedGroup__l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lockedGroup__n{
+  flex:0 0 auto;font-size:10px;font-weight:800;padding:2px 7px;border-radius:99px;
+  background:var(--surface-3);color:var(--text-2);
+}
+.lockedGroup .cards{opacity:.8}
+.lockedGroup--period summary{border-style:solid}
+
 /* ---------- 7. Boutons ---------- */
 .btn{
   display:flex;align-items:center;justify-content:center;gap:7px;

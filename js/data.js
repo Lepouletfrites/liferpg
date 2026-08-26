@@ -240,16 +240,21 @@ window.LifeRPG = window.LifeRPG || {};
   D.ITEMS.forEach(function (i) { D.ITEM[i.id] = i; });
 
   /* ---------------------------------------------------------
-     8. FORMATION
+     8. FORMATION — tronc commun.
+     Le Baccalauréat est le premier vrai mur : une fois les séances
+     faites, il faut le réussir à un examen (voir G.sitEduExam).
+     Au-delà, la formation continue dans une filière (data.education.js).
      --------------------------------------------------------- */
   D.EDU = [
     { n: 'Aucune scolarité', short: '—' },
     { n: 'Remise à niveau', short: 'Base', sessions: 6, cost: 0, hours: 3, energy: 14, ico: '✏️', d: 'Lire, écrire, compter correctement. À la bibliothèque, gratuitement.', req: {} },
     { n: 'CAP / Bac pro', short: 'CAP', sessions: 9, cost: 22, hours: 3, energy: 16, ico: '🔧', d: 'Une qualification reconnue. Ouvre les emplois de bureau.', req: { addr: true } },
-    { n: 'Baccalauréat', short: 'Bac', sessions: 12, cost: 40, hours: 4, energy: 18, ico: '🎓', d: 'Cours du soir. Long, mais décisif.', req: { addr: true } },
-    { n: 'Licence', short: 'Licence', sessions: 15, cost: 90, hours: 4, energy: 20, ico: '📜', d: 'Université. Les portes du management s’entrouvrent.', req: { addr: true, intelligence: 4 } },
-    { n: 'Master / MBA', short: 'MBA', sessions: 18, cost: 220, hours: 5, energy: 22, ico: '🏅', d: 'Le passeport des directions générales.', req: { addr: true, intelligence: 6 } },
-    { n: 'Doctorat', short: 'PhD', sessions: 24, cost: 420, hours: 5, energy: 24, ico: '🔬', d: 'Trois ans de plus. On ne vous demandera plus jamais vos diplômes.', req: { addr: true, intelligence: 8 } }
+    {
+      n: 'Baccalauréat', short: 'Bac', sessions: 14, cost: 45, hours: 4, energy: 18, ico: '🎓',
+      d: 'Cours du soir, deux ans de travail. Et un examen final qu’on ne réussit pas toujours du premier coup.',
+      req: { addr: true },
+      exam: true, examHours: 4, examEnergy: 20, examBase: 48, stat: 'intelligence', statW: 5.5
+    }
   ];
 
   /* ---------------------------------------------------------

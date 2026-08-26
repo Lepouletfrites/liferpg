@@ -392,10 +392,29 @@
 
     {
       id: 'diploma_fraud', w: 5, ico: '📜', title: 'Un diplôme à vendre',
-      cond: function (G) { return G.s.edu < 4 && G.repVal('pegre') >= 10 && G.money() >= 900; },
+      cond: function (G) { return G.repVal('pegre') >= 10 && G.money() >= 900 && (G.s.edu < 3 || (G.s.filiere && G.s.filiereLvl < 3)); },
       text: 'Quelqu’un propose des diplômes qui passent toutes les vérifications sauf une : celle qu’on ne fait jamais.',
       choices: [
-        { l: 'Acheter le diplôme (900 €)', h: 'Deux niveaux immédiats — risque durable', risky: true, req: function (G) { return G.money() >= 900; }, run: function (G) { G.cash(-900, 'Faux diplôme'); G.s.edu = Math.min(D.EDU.length - 1, G.s.edu + 2); G.s.eduProg = 0; G.flag('fakeDiploma', true); G.sched('diploma_check', G.rnd(15, 40)); return 'Papier filigrané, relevé de notes, numéro d’enregistrement. Vous êtes désormais titulaire de ' + D.EDU[G.s.edu].n + '.'; } },
+        {
+          l: 'Acheter le diplôme (900 €)', h: 'Un niveau immédiat — risque durable', risky: true,
+          req: function (G) { return G.money() >= 900; },
+          run: function (G) {
+            G.cash(-900, 'Faux diplôme');
+            var label;
+            if (G.s.edu < 3) {
+              G.s.edu++; G.s.eduProg = 0;
+              label = D.EDU[G.s.edu].n;
+              G.flag('fakeDiploma', { kind: 'bac', edu: G.s.edu - 1 });
+            } else {
+              var f = D.FILIERE[G.s.filiere];
+              G.s.filiereLvl++; G.s.filiereProg = 0;
+              label = f.levels[G.s.filiereLvl - 1].n;
+              G.flag('fakeDiploma', { kind: 'filiere', lvl: G.s.filiereLvl - 1 });
+            }
+            G.sched('diploma_check', G.rnd(15, 40));
+            return 'Papier filigrané, relevé de notes, numéro d’enregistrement. Vous êtes désormais titulaire de ' + label + '.';
+          }
+        },
         { l: 'Refuser', h: 'Le vôtre aura de la valeur', run: function (G) { G.xp('intelligence', 12); return 'Vous refusez. Ce que vous apprendrez vraiment ne pourra pas être annulé par une vérification.'; } }
       ]
     },
@@ -408,8 +427,11 @@
         {
           l: 'Laisser faire', h: 'Le hasard décide',
           run: function (G) {
+            var fake = G.flags('fakeDiploma');
             if (G.chance(45)) { G.flag('fakeDiploma', false); return 'Le contrôle porte sur trois dossiers pris au hasard. Pas le vôtre. Vous ne dormez pas de la semaine.'; }
-            G.s.edu = Math.max(0, G.s.edu - 2); G.flag('fakeDiploma', false); G.rep('legale', -15);
+            if (fake.kind === 'bac') { G.s.edu = fake.edu; G.s.eduProg = 0; }
+            else { G.s.filiereLvl = fake.lvl; G.s.filiereProg = 0; }
+            G.flag('fakeDiploma', false); G.rep('legale', -15);
             if (G.s.job) G.quitJob();
             return 'L’établissement n’a jamais entendu parler de vous. Le diplôme saute, et le poste avec.';
           }
@@ -568,11 +590,11 @@
 
     {
       id: 'assoc', w: 7, ico: '📋', title: 'Une place en formation',
-      cond: function (G) { return G.affVal('sofia') >= 15 && G.s.edu < D.EDU.length - 1; },
+      cond: function (G) { return G.affVal('sofia') >= 15 && G.eduLeft(); },
       text: 'Sofia vous attend avec un dossier. « Il reste une place sur un module financé. ' +
         'Il faut être là tous les jours, et il faut être à l’heure. »',
       choices: [
-        { l: 'Accepter', h: 'Progression de formation offerte', run: function (G) { G.eduSession(3); G.xp('intelligence', 30); G.rep('legale', 5); G.aff('sofia', 6); return 'Trois séances d’avance, gratuitement. Sofia note votre nom dans son carnet, comme une promesse.'; } },
+        { l: 'Accepter', h: 'Progression de formation offerte', run: function (G) { G.addEduProgress(3); G.xp('intelligence', 30); G.rep('legale', 5); G.aff('sofia', 6); return 'Trois séances d’avance, gratuitement. Sofia note votre nom dans son carnet, comme une promesse.'; } },
         { l: 'Refuser — pas le temps', h: 'Affinité en baisse', run: function (G) { G.aff('sofia', -8); G.add('moral', -3); return 'Elle referme le dossier sans commentaire. C’est le pire commentaire possible.'; } }
       ]
     },

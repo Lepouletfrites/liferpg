@@ -63,6 +63,30 @@
     }).join('') + '</div>';
   }
 
+  /**
+   * Rend une liste de cartes en séparant ce qui est utilisable maintenant
+   * de ce qui est verrouillé — le verrouillé part dans un tiroir replié,
+   * pour que l'écran ne montre en priorité que ce qui est vraiment jouable.
+   * mapFn(item) doit renvoyer les options de card(), ou null pour l'omettre.
+   */
+  function cardsWithLocked(list, mapFn, lockedLabel) {
+    var open = [], locked = [];
+    list.forEach(function (item) {
+      var o = mapFn(item);
+      if (!o) return;
+      (o.lock ? locked : open).push(card(o));
+    });
+    var out = open.length ? '<div class="cards">' + open.join('') + '</div>' : '';
+    if (locked.length) {
+      out += '<details class="lockedGroup">' +
+        '<summary><span class="lockedGroup__l">🔒 ' + (lockedLabel || 'Indisponible pour l’instant') + '</span>' +
+        '<span class="lockedGroup__n">' + locked.length + '</span></summary>' +
+        '<div class="cards mt">' + locked.join('') + '</div></details>';
+    }
+    if (!open.length && !locked.length) out = empty('—', 'Rien ici pour l’instant.');
+    return out;
+  }
+
   /* =========================================================
      En-tête
      ========================================================= */
@@ -113,9 +137,9 @@
   /* =========================================================
      Onglet SURVIE
      ========================================================= */
-  function actionCard(a) {
+  function actionCardOpts(a) {
     var lock = G.canDo(a);
-    return card({
+    return {
       ico: a.ico, title: a.n, desc: a.d, accent: a.accent,
       costs: [
         cost('⏱ ' + a.hours + ' h', 'cost--time'),
@@ -124,7 +148,42 @@
         a.when === 'night' ? cost('🌙 Nuit', 'cost--night') : null
       ],
       lock: lock, act: 'action', arg: a.id, detail: 'action:' + a.id
+    };
+  }
+  function actionCard(a) { return card(actionCardOpts(a)); }
+
+  /** Une ou deux actions qui répondent le mieux à l'état actuel du joueur. */
+  function recommendedBlock() {
+    var s = G.s;
+    var weight = { sante: 1.35, faim: 1.15, hygiene: 0.8, energie: 0.9, moral: 0.85 };
+    var needs = [
+      { g: 'sante', ids: ['medic'] },
+      { g: 'faim', ids: ['soup', 'scavenge'] },
+      { g: 'hygiene', ids: ['shower', 'wash'] },
+      { g: 'energie', ids: ['rest', 'nap'] },
+      { g: 'moral', ids: ['therapy', 'leisure'] }
+    ];
+    needs.sort(function (a, b) { return s.gauges[a.g] * weight[a.g] - s.gauges[b.g] * weight[b.g]; });
+
+    var picks = [];
+    needs.forEach(function (n) {
+      if (picks.length >= 3 || s.gauges[n.g] >= 55) return;
+      n.ids.forEach(function (id) {
+        if (picks.length >= 3) return;
+        var a = D.ACTION[id];
+        if (a && !G.canDo(a) && picks.indexOf(a) === -1) picks.push(a);
+      });
     });
+    if (!picks.length) {
+      ['beg', 'recycle', 'busk'].forEach(function (id) {
+        if (picks.length) return;
+        var a = D.ACTION[id];
+        if (a && !G.canDo(a)) picks.push(a);
+      });
+    }
+    if (!picks.length) return '';
+    return sectionTitle('👉 Suggéré maintenant') +
+      '<div class="cards cards--reco">' + picks.map(actionCard).join('') + '</div>';
   }
 
   function renderSurvie() {
@@ -137,9 +196,10 @@
         'mais chaque heure entame votre santé et le sommeil qui suivra sera court. ' +
         'Il vous reste <b>' + S.hoursLeft(s) + ' h</b> avant que le jour ne se lève.</div>');
     } else {
-      h.push(hint('Chaque action coûte du <b>temps</b> et de l’<b>énergie</b>. Il reste <b>' + S.hoursLeft(s) +
-        ' heures</b> avant la nuit. <b>Appui long</b> sur une carte pour voir le détail complet (gains, risques, statistiques cachées).'));
+      h.push(hint('Chaque action coûte du <b>temps</b> et de l’<b>énergie</b>. <b>Appui long</b> sur une carte pour voir son détail complet.'));
     }
+
+    h.push(recommendedBlock());
 
     var now = [], later = [], risky = [];
     D.ACTIONS.forEach(function (a) {
@@ -151,22 +211,156 @@
     });
 
     h.push(sectionTitle(night ? 'Activités nocturnes' : 'Survivre aujourd’hui'));
-    h.push('<div class="cards">' + now.map(actionCard).join('') + '</div>');
+    h.push(cardsWithLocked(now, actionCardOpts, 'Pas encore accessibles'));
 
     if (risky.length) {
       h.push(sectionTitle('⚠ Zone grise'));
       h.push(hint('Rapporte davantage, immédiatement, au prix de la <b>pression policière</b> (' + Math.round(s.heat) + ' %).'));
-      h.push('<div class="cards">' + risky.map(actionCard).join('') + '</div>');
+      h.push(cardsWithLocked(risky, actionCardOpts, 'Pas encore accessibles'));
     }
 
     if (later.length) {
-      h.push(sectionTitle(night ? 'Réservé au jour' : 'Réservé à la nuit'));
-      h.push(hint(night
-        ? 'Ces activités ne reprendront qu’après votre nuit de sommeil.'
-        : 'Après 22 h, vous pouvez choisir de veiller plutôt que de dormir. La nuit paie mieux — et coûte plus cher.'));
-      h.push('<div class="cards">' + later.map(actionCard).join('') + '</div>');
+      h.push('<details class="lockedGroup lockedGroup--period">' +
+        '<summary><span class="lockedGroup__l">' + (night ? '☀️ Réservé au jour' : '🌙 Réservé à la nuit') + '</span>' +
+        '<span class="lockedGroup__n">' + later.length + '</span></summary>' +
+        hint(night
+          ? 'Ces activités ne reprendront qu’après votre nuit de sommeil.'
+          : 'Après 22 h, vous pouvez choisir de veiller plutôt que de dormir. La nuit paie mieux — et coûte plus cher.') +
+        '<div class="cards">' + later.map(actionCard).join('') + '</div></details>');
     }
     return h.join('');
+  }
+
+  /* =========================================================
+     Formation — tronc commun, examens, filières post-bac
+     ========================================================= */
+  function filiereJobs(fid) {
+    return D.JOBS.filter(function (j) { return j.req && j.req.filiere === fid; })
+      .sort(function (a, b) { return (a.req.filiereLvl || 0) - (b.req.filiereLvl || 0); });
+  }
+
+  function sessionCard(level, actId, lockReason, ready) {
+    return card({
+      ico: '📖', title: ready ? 'Réviser encore' : 'Suivre une session',
+      desc: ready
+        ? 'Optionnel : chaque séance de plus (jusqu’à ' + G.OVERSTUDY_CAP + ') augmente vos chances à l’examen.'
+        : 'Une séance de plus vers l’examen.',
+      accent: 'var(--info)',
+      costs: [
+        cost('⏱ ' + level.hours + ' h', 'cost--time'), cost('⚡ −' + level.energy, 'cost--nrj'),
+        level.cost ? cost(eur(level.cost), 'cost--price') : cost('Gratuit', 'cost--pay')
+      ],
+      lock: lockReason, act: actId
+    });
+  }
+
+  function examCard(level, chance, actId, streak) {
+    var favorable = chance >= 50;
+    return card({
+      ico: '📝', title: 'Passer l’examen', desc: level.n +
+        ' — en cas d’échec, une partie des séances est perdue, mais la tentative suivante sera plus favorable.',
+      accent: favorable ? 'var(--good)' : 'var(--danger)',
+      costs: [
+        cost('⏱ ' + level.examHours + ' h', 'cost--time'), cost('⚡ −' + level.examEnergy, 'cost--nrj'),
+        cost('🎯 ' + Math.round(chance) + ' % de réussite', favorable ? 'cost--pay' : 'cost--risk'),
+        streak ? cost('+' + (streak * 6) + ' % (' + streak + ' échec' + (streak > 1 ? 's' : '') + ')') : null
+      ],
+      act: actId
+    });
+  }
+
+  function renderEducation(s) {
+    var h = [];
+
+    /* --- tronc commun --- */
+    h.push(sectionTitle('Formation'));
+    h.push('<div class="panel"><div class="panel__t">🎓 Niveau actuel : ' + D.EDU[s.edu].n + '</div></div>');
+
+    if (G.eduLeft()) {
+      var nx = D.EDU[s.edu + 1];
+      var pct = Math.round(s.eduProg / nx.sessions * 100);
+      h.push('<div class="panel mt"><div class="panel__hd"><div class="panel__t">' + nx.ico + ' ' + nx.n + '</div>' +
+        '<span class="tag">' + s.eduProg + '/' + nx.sessions + '</span></div>' + bar(pct) +
+        '<p class="hint mt">' + nx.d + '</p></div>');
+
+      var lockE = G.checkReq(nx.req) || (s.money < nx.cost ? 'Il faut ' + eur(nx.cost) + ' par session' : null);
+      var readyE = !!nx.exam && s.eduProg >= nx.sessions;
+      var cards = [];
+      if (!readyE || !nx.exam) cards.push(sessionCard(nx, 'study', lockE || (nx.hours > S.hoursLeft(s) ? 'Pas assez de temps' : null), readyE));
+      else if (s.eduProg < nx.sessions + G.OVERSTUDY_CAP) cards.push(sessionCard(nx, 'study', lockE || (nx.hours > S.hoursLeft(s) ? 'Pas assez de temps' : null), true));
+      if (readyE) cards.push(examCard(nx, G.eduExamChance(), 'sitedu', s.examStreak.bac));
+      h.push('<div class="cards mt">' + cards.join('') + '</div>');
+      h.push(hint('La nuit, l’activité <b>Réviser jusqu’à l’aube</b> valide aussi une séance.' +
+        (nx.exam ? ' Le <b>Baccalauréat</b> exige de réussir un examen : le moral et l’intelligence pèsent sur vos chances.' : '')));
+    } else if (!s.filiere) {
+      h.push(empty('🎓', 'Baccalauréat en poche. Il est temps de choisir une filière.'));
+    }
+
+    /* --- filière post-bac --- */
+    if (!G.eduLeft()) {
+      if (!s.filiere) {
+        h.push(sectionTitle('Choisir une filière'));
+        h.push(hint('Un choix <b>définitif</b>. Chaque filière mène à trois niveaux (Licence, Master, diplôme terminal) ' +
+          'et débloque ses propres postes — bien mieux payés que la voie générale, mais bien plus exigeants.'));
+        h.push(cardsWithLocked(D.FILIERES, function (f) {
+          var lock = G.checkReq(f.req);
+          var jobs = filiereJobs(f.id);
+          var payRange = jobs.length ? eur(jobs[0].pay) + ' → ' + eur(jobs[jobs.length - 1].pay) + ' / quart' : '';
+          return {
+            ico: f.ico, title: f.n, desc: f.d + (payRange ? ' Débouchés : ' + payRange + '.' : ''),
+            accent: 'var(--purple)',
+            costs: [cost(f.levels.length + ' niveaux', 'cost--time'), payRange ? cost(payRange, 'cost--pay') : null],
+            lock: lock, act: 'pickfiliere', arg: f.id
+          };
+        }, 'Hors de portée pour l’instant'));
+      } else {
+        var f = D.FILIERE[s.filiere];
+        var lvl = G.filiereLevel();
+        h.push(sectionTitle(f.ico + ' ' + f.n));
+        h.push('<div class="panel">' +
+          kv('Niveau obtenu', s.filiereLvl > 0 ? D.FILIERE_TIER[s.filiereLvl - 1] : 'Aucun encore') +
+          kv('Progression', s.filiereLvl + ' / ' + f.levels.length) + '</div>');
+
+        if (lvl) {
+          var pctF = Math.round(s.filiereProg / lvl.sessions * 100);
+          h.push('<div class="panel mt"><div class="panel__hd"><div class="panel__t">' + f.ico + ' ' + lvl.n + '</div>' +
+            '<span class="tag">' + s.filiereProg + '/' + lvl.sessions + '</span></div>' + bar(pctF) + '</div>');
+
+          var lockF = G.checkReq(lvl.req) || (s.money < lvl.cost ? 'Il faut ' + eur(lvl.cost) + ' par session' : null);
+          var readyF = s.filiereProg >= lvl.sessions;
+          var streakF = s.examStreak[s.filiere + s.filiereLvl];
+          var cardsF = [];
+          if (!readyF || s.filiereProg < lvl.sessions + G.OVERSTUDY_CAP) {
+            cardsF.push(sessionCard(lvl, 'studyfil', lockF || (lvl.hours > S.hoursLeft(s) ? 'Pas assez de temps' : null), readyF));
+          }
+          if (readyF) cardsF.push(examCard(lvl, G.filiereExamChance(), 'sitfil', streakF));
+          h.push('<div class="cards mt">' + cardsF.join('') + '</div>');
+        } else {
+          h.push(empty('🏅', 'Parcours achevé en ' + f.n + '. Les postes les plus élevés de cette filière vous sont ouverts.'));
+        }
+
+        h.push(sectionTitle('Débouchés de la filière'));
+        h.push('<div class="panel">' + filiereJobs(f.id).map(function (j) {
+          var reached = s.filiereLvl >= (j.req.filiereLvl || 0);
+          return kv(j.ico + ' ' + j.n + ' <span class="tag">' + D.FILIERE_TIER[(j.req.filiereLvl || 1) - 1] + '</span>',
+            (reached ? 'Accessible · ' : '') + eur(j.pay) + '/quart', reached ? 'v-good' : '');
+        }).join('') + '</div>');
+      }
+    }
+
+    /* --- parcours complet --- */
+    h.push(sectionTitle('Parcours'));
+    h.push('<div class="panel">' + D.EDU.map(function (e, i) {
+      if (!i) return '';
+      return kv(e.ico + ' ' + e.n, s.edu >= i ? 'Obtenu' : e.sessions + ' séances', s.edu >= i ? 'v-good' : '');
+    }).join('') + '</div>');
+    if (s.filiere) {
+      var ff = D.FILIERE[s.filiere];
+      h.push('<div class="panel">' + ff.levels.map(function (l, i) {
+        return kv(ff.ico + ' ' + l.n, s.filiereLvl > i ? 'Obtenu' : l.sessions + ' séances', s.filiereLvl > i ? 'v-good' : '');
+      }).join('') + '</div>');
+    }
+    return h;
   }
 
   /* =========================================================
@@ -182,10 +376,10 @@
     if (sub.travail === 'gigs') {
       h.push(sectionTitle('Petits boulots'));
       h.push(hint('Payés en liquide, sans contrat. Accessibles vite, mais votre revenu reste plafonné par vos heures.'));
-      h.push('<div class="cards">' + D.GIGS.map(function (g) {
+      h.push(cardsWithLocked(D.GIGS, function (g) {
         var hours = G.gigHours(g);
         var lock = G.canDo({ req: g.req, hours: hours, energy: g.energy, when: g.when });
-        return card({
+        return {
           ico: g.ico, title: g.n, desc: g.d, accent: 'var(--good)',
           costs: [
             cost('⏱ ' + hours + ' h', 'cost--time'),
@@ -193,8 +387,8 @@
             g.when === 'night' ? cost('🌙 Nuit', 'cost--night') : null
           ],
           lock: lock, act: 'gig', arg: g.id, detail: 'gig:' + g.id
-        });
-      }).join('') + '</div>');
+        };
+      }, 'Pas encore accessibles'));
     }
 
     if (sub.travail === 'job') {
@@ -224,49 +418,25 @@
           'et un <b>casier</b> compatible. En échange : un revenu stable et de la réputation légale.'));
       }
 
-      h.push('<div class="cards">' + D.JOBS.map(function (jb) {
-        if (s.job && s.job.id === jb.id) return '';
+      h.push(cardsWithLocked(D.JOBS, function (jb) {
+        if (s.job && s.job.id === jb.id) return null;
         var max = jb.casierMax === undefined ? 99 : jb.casierMax;
         var lock = G.checkReq(jb.req) || (s.casier > max ? 'Casier trop chargé (max ' + max + ')' : null);
-        return card({
+        return {
           ico: jb.ico, title: jb.n, desc: jb.d, accent: 'var(--info)',
           costs: [cost('⏱ ' + jb.hours + ' h/quart', 'cost--time'), cost(eur(jb.pay) + ' / quart', 'cost--pay'),
-          jb.req.edu ? cost('🎓 ' + D.EDU[jb.req.edu].short) : null,
+          jb.req.filiere ? cost('🎓 ' + D.FILIERE[jb.req.filiere].ico + ' ' + D.FILIERE_TIER[(jb.req.filiereLvl || 1) - 1]) :
+          (jb.req.edu ? cost('🎓 ' + D.EDU[jb.req.edu].short) : null),
           jb.when === 'night' ? cost('🌙 Nuit', 'cost--night') : null],
           lock: lock, act: 'apply', arg: jb.id, detail: 'job:' + jb.id,
           badge: lock ? '' : '<span class="badge badge--new">Éligible</span>'
-        });
-      }).join('') + '</div>');
+        };
+      }, 'Hors de portée pour l’instant'));
       h.push(hint('Postuler coûte 2 heures. Appui long sur un poste pour voir vos chances réelles d’embauche.'));
     }
 
     if (sub.travail === 'edu') {
-      h.push(sectionTitle('Formation'));
-      h.push('<div class="panel"><div class="panel__t">🎓 Niveau actuel : ' + D.EDU[s.edu].n + '</div></div>');
-
-      if (G.eduLeft()) {
-        var nx = D.EDU[s.edu + 1];
-        var pct = Math.round(s.eduProg / nx.sessions * 100);
-        h.push('<div class="panel mt">' +
-          '<div class="panel__hd"><div class="panel__t">' + nx.ico + ' ' + nx.n + '</div><span class="tag">' + s.eduProg + '/' + nx.sessions + '</span></div>' +
-          bar(pct) + '<p class="hint mt">' + nx.d + '</p></div>');
-        var lockE = G.checkReq(nx.req) || (s.money < nx.cost ? 'Il faut ' + eur(nx.cost) + ' par session' : null) ||
-          (nx.hours > S.hoursLeft(s) ? 'Pas assez de temps' : null);
-        h.push('<div class="cards mt">' + card({
-          ico: '📖', title: 'Suivre une session', desc: 'Une séance de plus vers le diplôme.',
-          accent: 'var(--info)',
-          costs: [cost('⏱ ' + nx.hours + ' h', 'cost--time'), cost('⚡ −' + nx.energy, 'cost--nrj'),
-          nx.cost ? cost(eur(nx.cost), 'cost--price') : cost('Gratuit', 'cost--pay')],
-          lock: lockE, act: 'study'
-        }) + '</div>');
-        h.push(hint('La nuit, l’activité <b>Réviser jusqu’à l’aube</b> valide aussi une séance.'));
-      } else h.push(empty('🏅', 'Vous avez atteint le plus haut niveau de formation.'));
-
-      h.push(sectionTitle('Parcours'));
-      h.push('<div class="panel">' + D.EDU.map(function (e, i) {
-        if (!i) return '';
-        return kv(e.ico + ' ' + e.n, s.edu >= i ? 'Obtenu' : e.sessions + ' séances', s.edu >= i ? 'v-good' : '');
-      }).join('') + '</div>');
+      h.push.apply(h, renderEducation(s));
     }
 
     if (sub.travail === 'biz') {
@@ -298,17 +468,17 @@
 
       h.push(sectionTitle('Créer une entreprise'));
       h.push(hint('C’est le seul moteur capable de vous mener au million : vos entreprises produisent <b>chaque nuit</b>, même quand vous dormez.'));
-      h.push('<div class="cards">' + D.BIZ.map(function (d) {
-        if (G.ownBiz(d.id)) return '';
+      h.push(cardsWithLocked(D.BIZ, function (d) {
+        if (G.ownBiz(d.id)) return null;
         var lock = G.checkReq(d.req) || (s.money < d.cost ? 'Capital de ' + eur(d.cost) + ' requis' : null);
-        return card({
+        return {
           ico: d.ico, title: d.n, desc: d.d, accent: d.legal === false ? 'var(--danger)' : 'var(--gold)',
           costs: [cost('⏱ 3 h', 'cost--time'), cost(eur(d.cost), 'cost--price'),
           cost('≈ ' + eur(d.rev) + '/jour', d.legal === false ? 'cost--risk' : 'cost--pay'),
           d.wash ? cost('🧼 Blanchiment') : null],
           lock: lock, act: 'bizbuy', arg: d.id
-        });
-      }).join('') + '</div>');
+        };
+      }, 'Hors de portée pour l’instant'));
     }
 
     return h.join('');
@@ -337,9 +507,9 @@
         if (!list.length) return;
         h.push(sectionTitle(cat.l));
         h.push(hint(cat.d));
-        h.push('<div class="cards">' + list.map(function (c) {
+        h.push(cardsWithLocked(list, function (c) {
           var lock = G.canDo(c);
-          return card({
+          return {
             ico: c.ico, title: c.n, desc: c.d,
             accent: cat.id === 'cover' ? 'var(--info)' : (cat.id === 'big' ? 'var(--danger)' : 'var(--gold-2)'),
             costs: [
@@ -349,26 +519,26 @@
               c.when === 'night' ? cost('🌙 Nuit', 'cost--night') : (c.when === 'day' ? cost('☀️ Jour') : null)
             ],
             lock: lock, act: 'crime', arg: c.id, detail: 'crime:' + c.id
-          });
-        }).join('') + '</div>');
+          };
+        }, 'Hors de portée pour l’instant'));
       });
     }
 
     if (sub.milieu === 'marche') {
       h.push(sectionTitle('Marché parallèle'));
       h.push(hint('Payable en argent propre ou en <b>argent sale</b>. Personne ne demande de facture.'));
-      h.push('<div class="cards">' + D.ITEMS.filter(function (i) { return i.shop === 'street'; }).map(function (it) {
+      h.push(cardsWithLocked(D.ITEMS.filter(function (i) { return i.shop === 'street'; }), function (it) {
         var own = s.inv[it.id] || 0;
         var lock = G.checkReq(it.req) || (it.keep && own ? 'Déjà possédé' : null) ||
           (s.money < it.price && s.dirty < it.price ? 'Il faut ' + eur(it.price) : null);
-        return card({
+        return {
           ico: it.ico, title: it.n, desc: it.d, accent: 'var(--danger)',
           costs: [cost(eur(it.price), 'cost--price'),
           s.dirty >= it.price ? cost('🩸 Payable en sale', 'cost--risk') : null],
           badge: own ? '<span class="badge badge--own">×' + own + '</span>' : '',
           lock: lock, act: 'buystreet', arg: it.id
-        });
-      }).join('') + '</div>');
+        };
+      }, 'Hors de portée pour l’instant'));
       h.push(hint('Un appui long n’est pas nécessaire ici : le prix est le seul risque. Ce que vous en ferez, en revanche…'));
     }
 
@@ -710,19 +880,19 @@
         var items = D.ITEMS.filter(function (i) { return i.cat === c.id && i.shop === 'city'; });
         if (!items.length) return;
         h.push(sectionTitle(c.l));
-        h.push('<div class="cards">' + items.map(function (it) {
+        h.push(cardsWithLocked(items, function (it) {
           var own = (s.inv[it.id] || 0);
           var lock = G.checkReq(it.req) || (it.keep && own ? 'Déjà possédé' : null) ||
             (s.money < it.price ? 'Il faut ' + eur(it.price) : null);
-          return card({
+          return {
             ico: it.ico, title: it.n, desc: it.d, accent: 'var(--gold)',
             costs: [cost(eur(it.price), 'cost--price'),
             it.style ? cost('👔 Style ' + it.style) : null,
             it.use ? cost('Consommable') : cost('Durable')],
             badge: own ? '<span class="badge badge--own">×' + own + '</span>' : '',
             lock: lock, act: 'buy', arg: it.id
-          });
-        }).join('') + '</div>');
+          };
+        }, 'Hors de prix pour l’instant'));
       });
     }
 
@@ -774,20 +944,20 @@
       h.push(hint('Sans <b>adresse administrative</b>, aucun employeur ne vous déclarera et aucune banque ne vous ouvrira de compte.'));
 
       h.push(sectionTitle('Déménager'));
-      h.push('<div class="cards">' + D.HOMES.map(function (hm) {
-        if (hm.id === s.home) return '';
+      h.push(cardsWithLocked(D.HOMES, function (hm) {
+        if (hm.id === s.home) return null;
         var req = (hm.id === 'squat' && s.flags.squatOk) ? {} : hm.req;
         var dep = s.flags.noDeposit ? 0 : hm.deposit;
         var lock = G.checkReq(req) || (s.money < dep ? 'Caution de ' + eur(dep) : null);
-        return card({
+        return {
           ico: hm.ico, title: hm.name, desc: hm.desc, accent: 'var(--info)',
           costs: [cost(hm.rent ? eur(hm.rent) + '/nuit' : 'Sans loyer', 'cost--price'),
           dep ? cost('Caution ' + eur(dep), 'cost--price') : null,
           cost('😴 +' + hm.sleep), hm.addr ? cost('📮 Adresse', 'cost--pay') : null,
           hm.cool ? cost('🫥 Discret +' + hm.cool, 'cost--risk') : null],
           lock: lock, act: 'move', arg: hm.id
-        });
-      }).join('') + '</div>');
+        };
+      }, 'Hors de portée pour l’instant'));
     }
     return h.join('');
   }
@@ -845,7 +1015,8 @@
         kv('🚨 Pression policière', Math.round(s.heat) + ' / 100', s.heat > 45 ? 'v-bad' : '') +
         kv('📕 Casier judiciaire', s.casier + ' mention(s)', s.casier > 3 ? 'v-bad' : '') +
         kv('✨ Apparence', S.apparence(s) + ' / 100') +
-        kv('🎓 Formation', D.EDU[s.edu].n) +
+        kv('🎓 Formation', D.EDU[s.edu].n +
+          (s.filiere ? ' · ' + D.FILIERE[s.filiere].n + (s.filiereLvl ? ' (' + D.FILIERE_TIER[s.filiereLvl - 1] + ')' : '') : '')) +
         (s.flags.addict ? kv('💉 Dépendance', 'niveau ' + s.flags.addict, 'v-bad') : '') +
         (s.flags.dog ? kv('🐕 Compagnon', 'Oui') : '') +
         (s.flags.nopapers ? kv('🪪 Papiers', 'Aucun', 'v-bad') : '') +
@@ -1075,7 +1246,7 @@
         kv('Total gagné', eur(s.totals.earned)) +
         kv('Délits commis', s.totals.crimes) +
         kv('Jours de détention', s.totals.jailDays) +
-        kv('Formation', D.EDU[s.edu].n) +
+        kv('Formation', D.EDU[s.edu].n + (s.filiere ? ' · ' + D.FILIERE[s.filiere].n : '')) +
         '</div>',
       actions: [{ l: '🔄 Recommencer une vie', h: 'Repartir de zéro', fn: function () { NS.MAIN.reset(); } }]
     });
@@ -1270,6 +1441,20 @@
     apply: function (arg) { G.applyJob(arg); },
     quit: function () { G.quitJob(); },
     study: function () { G.study(); },
+    sitedu: function () { G.sitEduExam(); },
+    studyfil: function () { G.studyFiliere(); },
+    sitfil: function () { G.sitFiliereExam(); },
+    pickfiliere: function (arg) {
+      var f = D.FILIERE[arg];
+      UI.modal({
+        ico: f.ico, title: 'Choisir ' + f.n + ' ?',
+        body: '<p>' + f.d + '</p><p>Ce choix est <b>définitif</b> : impossible de changer de filière ensuite.</p>',
+        actions: [
+          { l: 'Oui, m’engager', h: 'Irréversible', risky: true, fn: function () { G.chooseFiliere(arg); } },
+          { l: 'Annuler', h: '', fn: null }
+        ]
+      });
+    },
     bizbuy: function (arg) { G.buyBiz(arg); },
     bizup: function (arg) { G.upgradeBiz(arg); },
     bizsell: function () {

@@ -391,7 +391,8 @@
       run: function (G) {
         G.xp('intelligence', 22 + (G.has('ordi') ? 8 : 0));
         G.add('moral', -6); G.add('sante', -3);
-        if (G.eduLeft()) { G.eduSession(1); return { t: 'good', m: 'Trois heures de nuit blanche studieuse. Une séance de formation validée en plus.' }; }
+        if (G.eduLeft()) { G.addEduProgress(1); return { t: 'good', m: 'Trois heures de nuit blanche studieuse. Une séance de formation validée en plus.' }; }
+        if (G.filiereLevel()) { G.s.filiereProg++; return { t: 'good', m: 'Trois heures de nuit blanche studieuse. Une séance de plus dans votre filière.' }; }
         return { t: 'good', m: 'Trois heures de nuit blanche studieuse. Beaucoup d’XP, un dos en morceaux.' };
       }
     },

@@ -5,8 +5,8 @@
   'use strict';
 
   var D = NS.D;
-  var KEY = 'liferpg.save.v2';
-  var VERSION = 2;
+  var KEY = 'liferpg.save.v3';
+  var VERSION = 3;
   var S = {};
 
   /* --------------------- création --------------------- */
@@ -27,6 +27,10 @@
       job: null,            // { id, shifts }
       edu: 0,
       eduProg: 0,
+      filiere: null,        // id de la filière post-bac choisie (définitif)
+      filiereLvl: 0,        // 0-3 : niveaux validés dans cette filière
+      filiereProg: 0,       // séances accumulées vers le niveau suivant
+      examStreak: {},       // { clé: échecs consécutifs } — booste la chance à chaque échec
       biz: [],              // [{ id, lvl }]
       bank: {
         open: false, checking: 0, savings: 0, score: 20,

@@ -99,6 +99,9 @@
             '<p>Trois choses vous tueront si vous les négligez : la <em>faim</em>, la <em>santé</em>, le <em>moral</em>. ' +
             'Trois choses vous sortiront d’ici : l’<em>hygiène</em>, une <em>adresse</em>, un <em>diplôme</em>. ' +
             'Une quatrième vous y ramènera si vous en abusez : la <em>pression policière</em>.</p>' +
+            '<p>Les études mènent au <em>Baccalauréat</em> — un vrai examen, pas une simple présence — puis à une ' +
+            '<em>filière</em> au choix définitif : Informatique, Commerce, Droit, Santé ou Ingénierie. ' +
+            'Aller au bout de l’une d’elles ouvre les postes les mieux payés du jeu.</p>' +
             '<p><em>Appuyez longuement</em> sur n’importe quelle action pour ouvrir sa fiche détaillée : ' +
             'plage de gains réelle, taux de réussite, risque pénal et statistiques qui l’influencent.</p>',
           actions: [{ l: 'Commencer', h: 'Bonne chance.', fn: null }]
