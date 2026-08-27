@@ -59,6 +59,7 @@
         discretion: { lvl: 1, xp: 0 }
       },
       rep: { rue: 5, legale: 5, pegre: 0 },
+      repLast: { rue: 1, legale: 1, pegre: 1 },   // dernier jour où chaque réputation a progressé
       inv: {},
       npc: {},
       npcMet: {},           // dernier jour de contact

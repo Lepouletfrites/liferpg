@@ -1023,7 +1023,8 @@
   function renderSocial() {
     var s = G.s, h = [];
     h.push(hint('Les gens que vous croisez valent plus que l’argent : ils ouvrent des portes qu’aucune somme ne débloque. ' +
-      'Une relation <b>se dégrade</b> si vous la négligez, et les factions se surveillent.'));
+      'Une relation <b>se dégrade</b> si vous la négligez, et les factions se surveillent. ' +
+      'Certaines faveurs (🔁) sont des services qu’on peut redemander après un délai ; d’autres ne se produisent qu’une fois.'));
 
     if (s.quests.length) {
       h.push(sectionTitle('🎯 Engagements en cours'));
@@ -1071,12 +1072,16 @@
     var rel = D.relation(aff);
     var idle = s.day - (s.npcMet[id] || 0);
 
+    var onceFavors = n.favors.filter(function (f) { return f.once; });
+    var onceDone = onceFavors.filter(function (f) { return s.flags['fav_' + id + '_' + f.id]; }).length;
+
     var body = '<p>' + n.d + '</p>' +
       '<div class="panel mt">' +
       kv('Relation', '<span style="color:' + rel.c + '">' + rel.ico + ' ' + rel.n + '</span>') +
       kv('Affinité', aff + ' / 100') +
       kv('Érosion sans contact', '−' + (n.decay || 0.5) + ' / jour au-delà de 4 jours') +
       kv('Dernier contact', idle > 900 ? 'jamais' : 'il y a ' + idle + ' jour(s)') +
+      (onceFavors.length ? kv('Faveurs exceptionnelles obtenues', onceDone + ' / ' + onceFavors.length) : '') +
       '</div>';
 
     var acts = [
@@ -1095,11 +1100,16 @@
     });
 
     n.favors.forEach(function (f) {
-      var done = s.flags['fav_' + id + '_' + f.id];
+      var done = f.once && s.flags['fav_' + id + '_' + f.id];
+      var cdUntil = f.once ? 0 : G.favorCdUntil(id, f.id);
+      var onCd = cdUntil > s.day;
+      var locked = done ? 'Déjà obtenu' :
+        (onCd ? 'Revenez dans ' + (cdUntil - s.day) + ' j' :
+        (aff < f.aff ? 'Affinité ' + f.aff + ' requise (vous : ' + aff + ')' : null));
       acts.push({
-        l: (f.risky ? '⚠ ' : '⭐ ') + f.n,
-        h: done ? 'Déjà obtenu' : f.d + ' · affinité ' + f.aff + ' requise',
-        locked: done ? 'Déjà obtenu' : (aff < f.aff ? 'Affinité ' + f.aff + ' requise (vous : ' + aff + ')' : null),
+        l: (f.risky ? '⚠ ' : '⭐ ') + f.n + (f.once ? '' : ' 🔁'),
+        h: locked || (f.d + ' · affinité ' + f.aff + ' requise' + (f.once ? '' : ' · réutilisable tous les ' + (f.cd || 5) + ' j')),
+        locked: locked,
         fn: function () { G.favor(id, f.id); }
       });
     });
@@ -1531,10 +1541,13 @@
       }).join('') + '</div>');
 
       h.push(sectionTitle('Réputations'));
+      h.push(hint('Une réputation qui ne progresse plus finit par s’éroder au bout de 5 jours — ' +
+        'un contact utile dans le milieu concerné suffit à relancer l’entretien.'));
       h.push('<div class="panel">' + D.REPS.map(function (r) {
+        var idle = s.day - ((s.repLast || {})[r.id] || 0);
         return '<div class="stat"><div class="stat__hd"><span>' + r.ico + ' ' + r.label + '</span>' +
           '<span class="stat__lvl">' + Math.round(s.rep[r.id]) + '</span></div>' + bar(s.rep[r.id]) +
-          '<div class="stat__d">' + r.d + '</div></div>';
+          '<div class="stat__d">' + r.d + (idle > 5 ? ' <span class="v-bad">· sans entretien depuis ' + idle + ' j</span>' : '') + '</div></div>';
       }).join('') + '</div>');
 
       h.push(sectionTitle('État'));

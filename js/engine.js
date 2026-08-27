@@ -172,6 +172,19 @@
   G.rep = function (kind, n) {
     var k = (kind === 'rue' || kind === 'legale' || kind === 'pegre') ? kind : 'legale';
     this.s.rep[k] = clamp(this.s.rep[k] + n, 0, 100);
+    if (n > 0) this.s.repLast[k] = this.s.day;
+  };
+
+  /** Une réputation qu'on ne cultive plus finit par s'éroder — comme tout le reste ici */
+  G.decayRep = function () {
+    var s = this.s;
+    ['rue', 'legale', 'pegre'].forEach(function (k) {
+      var idle = s.day - (s.repLast[k] || 0);
+      if (idle > 5 && s.rep[k] > 0) {
+        var loss = 0.4 + s.rep[k] * 0.012;
+        s.rep[k] = clamp(s.rep[k] - loss, 0, 100);
+      }
+    });
   };
 
   G.heat = function (n) {
@@ -1287,16 +1300,31 @@
     NS.UI.refresh(); S.save(this.s);
   };
 
+  /** Prochain jour où une faveur réutilisable sera de nouveau disponible (0 si jamais demandée) */
+  G.favorCdUntil = function (npcId, favId) {
+    return this.s.flags['favCd_' + npcId + '_' + favId] || 0;
+  };
+
+  /**
+   * Certaines faveurs sont des services ponctuels qu'on peut redemander (avec un délai) ;
+   * d'autres sont des déblocages définitifs (f.once) qui ne se produisent qu'une fois.
+   */
   G.favor = function (npcId, favId) {
     var n = D.NPC[npcId];
     var f = n.favors.filter(function (x) { return x.id === favId; })[0];
     if (!f) return;
     if (this.affVal(npcId) < f.aff) { NS.UI.toast('Affinité insuffisante', 'bad'); return; }
-    if (this.s.flags['fav_' + npcId + '_' + favId]) { NS.UI.toast('Déjà obtenu', 'bad'); return; }
+    if (f.once) {
+      if (this.s.flags['fav_' + npcId + '_' + favId]) { NS.UI.toast('Déjà obtenu', 'bad'); return; }
+    } else {
+      var cdUntil = this.favorCdUntil(npcId, favId);
+      if (this.s.day < cdUntil) { NS.UI.toast('Revenez dans ' + (cdUntil - this.s.day) + ' j', 'bad'); return; }
+    }
 
     var msg = f.run(this);
     if (msg === null) { NS.UI.toast('Conditions non réunies', 'bad'); return; }
-    this.s.flags['fav_' + npcId + '_' + favId] = true;
+    if (f.once) this.s.flags['fav_' + npcId + '_' + favId] = true;
+    else this.s.flags['favCd_' + npcId + '_' + favId] = this.s.day + (f.cd || 5);
     this.aff(npcId, -10);
     this.s.npcMet[npcId] = this.s.day;
     this.log('<b>' + n.n + '</b> : ' + msg, 'event');
@@ -1702,6 +1730,7 @@
     this.tickShops();
     if (this.tickGang) this.tickGang(lines);
     this.decayRelations();
+    this.decayRep();
     this.resolveQuests();
 
     var h = S.home(s);
