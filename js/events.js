@@ -763,6 +763,225 @@
       ]
     },
 
+    /* ══════════════════ RACKET & EXTORSION ══════════════════ */
+
+    {
+      id: 'racket_street', w: 8, ico: '💢', title: 'On vient encaisser',
+      cond: function (G) { return G.money() >= 60 && G.repVal('rue') < 55 && S.homeIdx(G.s) <= 6; },
+      text: 'Trois types vous barrent le passage à l’angle de la rue. Le plus grand parle sans hausser la voix : ' +
+        '« Tu travailles sur notre secteur. Ça se paie. »',
+      choices: [
+        {
+          l: 'Payer ce qu’ils demandent', h: 'Environ 25 % de votre liquide',
+          run: function (G) {
+            var t = Math.max(20, Math.round(G.money() * 0.25));
+            G.cash(-t, 'Racket'); G.add('moral', -10); G.rep('rue', -2);
+            G.flag('racketed', G.day() + G.rnd(6, 14));
+            return 'Vous tendez ' + G.eur(t) + '. Ils comptent devant vous, lentement, puis s’écartent.';
+          }
+        },
+        {
+          l: 'Refuser et tenir tête', h: 'Force — ils sont trois', risky: true,
+          run: function (G) {
+            var p = 22 + G.lvl('force') * 8 + G.repVal('rue') * 0.3 + (G.affVal('bruno') >= 40 ? 18 : 0);
+            if (G.chance(p)) {
+              G.rep('rue', 10); G.rep('pegre', 4); G.add('sante', -12); G.xp('force', 14);
+              return 'Vous en mettez un au sol avant que les autres ne comprennent. Ils reculent. On en parlera.';
+            }
+            var l = Math.min(G.money(), G.rnd(60, 400));
+            G.cash(-l, 'Volé'); G.add('sante', -28); G.add('moral', -15); G.rep('rue', -4);
+            return 'Ils prennent tout : ' + G.eur(l) + '. Vous vous relevez dix minutes plus tard.';
+          }
+        },
+        {
+          l: 'Négocier un arrangement', h: 'Charisme — payer moins, plus longtemps',
+          run: function (G) {
+            if (G.chance(35 + G.lvl('charisme') * 6)) {
+              var t = Math.max(10, Math.round(G.money() * 0.1));
+              G.cash(-t, 'Arrangement'); G.rep('rue', 3); G.xp('charisme', 10);
+              return 'Vous parlez cinq minutes et descendez à ' + G.eur(t) + '. « T’es réglo. On repassera. »';
+            }
+            var t2 = Math.max(30, Math.round(G.money() * 0.35));
+            G.cash(-t2, 'Racket'); G.add('moral', -12);
+            return 'Votre numéro ne prend pas. Ils montent le prix à ' + G.eur(t2) + ' pour vous apprendre.';
+          }
+        },
+        {
+          l: 'Les envoyer voir le Grec', h: 'Réputation pègre ≥ 35',
+          req: function (G) { return G.repVal('pegre') >= 35; },
+          run: function (G) { G.rep('pegre', 3); return 'Vous lâchez un nom. Le grand blêmit, s’excuse presque, et vous laisse passer.'; }
+        }
+      ]
+    },
+
+    {
+      id: 'racket_biz', w: 7, ico: '🏪', title: 'Protection obligatoire',
+      cond: function (G) { return G.s.biz.length > 0; },
+      text: 'Deux hommes entrent dans votre établissement à l’heure de la fermeture. ' +
+        'Ils regardent les vitres, la caisse, la sortie de secours. « Ce serait dommage qu’il arrive quelque chose. »',
+      choices: [
+        {
+          l: 'Payer la protection', h: 'Coût mensuel, tranquillité',
+          run: function (G) {
+            var t = 400 + G.s.biz.length * 300;
+            if (!G.spend(t, 'Protection')) { G.add('sante', -20); return 'Vous ne pouvez même pas payer. Ils cassent deux vitrines en partant.'; }
+            G.flag('protectionPaid', G.day() + 25); G.rep('pegre', 3); G.add('moral', -8);
+            return G.eur(t) + ' par mois, en liquide, sans reçu. Vos affaires ne seront plus dérangées.';
+          }
+        },
+        {
+          l: 'Prévenir la police', h: 'Légal — et risqué', risky: true,
+          run: function (G) {
+            G.rep('legale', 6); G.aff('duval', 8); G.rep('pegre', -12);
+            if (G.chance(45)) { G.affFaction('pegre', -10); G.sched('racket_revenge', G.rnd(4, 10)); return 'La plainte est enregistrée. Le milieu apprendra qui a parlé.'; }
+            return 'Une patrouille passe désormais tous les soirs devant chez vous. Ils ne sont pas revenus.';
+          }
+        },
+        {
+          l: 'Refuser sèchement', h: 'Force & réputation', risky: true,
+          run: function (G) {
+            var p = 25 + G.lvl('force') * 6 + G.repVal('pegre') * 0.4;
+            if (G.chance(p)) { G.rep('pegre', 10); G.rep('rue', 6); return 'Vous les mettez dehors vous-même. Le message circule : chez vous, ça ne marche pas.'; }
+            var b = G.s.biz[0];
+            if (b && b.lvl > 1) b.lvl--;
+            G.add('sante', -15); G.add('moral', -14);
+            return 'Ils reviennent à trois heures du matin. Votre établissement met des semaines à s’en remettre.';
+          }
+        }
+      ]
+    },
+
+    {
+      id: 'racket_revenge', manual: true, ico: '🧨', title: 'Représailles',
+      text: 'On n’oublie pas ce genre de chose. Une voiture ralentit devant chez vous, une vitre explose.',
+      choices: [
+        {
+          l: 'Encaisser et se taire', h: 'Dégâts matériels',
+          run: function (G) {
+            var l = Math.min(G.money(), G.rnd(200, 900));
+            if (l) G.cash(-l, 'Réparations');
+            G.add('moral', -15);
+            return 'Vous payez les réparations sans porter plainte. Le message est reçu.';
+          }
+        },
+        {
+          l: 'Riposter', h: 'Force — escalade', risky: true,
+          run: function (G) {
+            if (G.chance(30 + G.lvl('force') * 7 + G.repVal('pegre') * 0.3)) {
+              G.rep('pegre', 12); G.rep('rue', 8); G.heat(15);
+              return 'Vous remontez jusqu’à eux en deux jours. Après ça, plus personne ne touche à vos vitres.';
+            }
+            G.add('sante', -30); G.add('moral', -18); G.heat(20);
+            return 'Vous frappez le mauvais groupe. Vous vous en sortez avec trois côtes fêlées.';
+          }
+        },
+        {
+          l: 'Payer pour la paix', h: '3 000 €', req: function (G) { return G.canPay(3000); },
+          run: function (G) { G.spend(3000, 'Paix achetée'); G.rep('pegre', -3); return 'Trois mille euros et un intermédiaire. L’affaire est close, salement.'; }
+        }
+      ]
+    },
+
+    {
+      id: 'racket_cop', w: 6, ico: '👮', title: 'Un contrôle très intéressé',
+      cond: function (G) { return G.dirtyVal() >= 400 || (G.heatVal() > 25 && G.money() > 300); },
+      text: 'L’agent regarde votre liasse un long moment sans rien dire. ' +
+        '« Tout ça sur vous, à cette heure-ci. On va devoir tout saisir, et ça va prendre des mois. À moins que… »',
+      choices: [
+        {
+          l: 'Glisser la moitié', h: 'Le liquide part, vous restez libre',
+          run: function (G) {
+            var d = Math.round(G.dirtyVal() * 0.5), c = Math.round(G.money() * 0.3);
+            if (d) G.dirtyCash(-d, 'Ripou');
+            if (c) G.cash(-c, 'Ripou');
+            G.heat(-15); G.aff('duval', -5);
+            return 'Il empoche sans compter et vous souhaite une bonne soirée. ' + G.eur(d + c) + ' de moins.';
+          }
+        },
+        {
+          l: 'Refuser et exiger un procès-verbal', h: 'Intègre — et coûteux', risky: true,
+          run: function (G) {
+            if (G.chance(45 + G.lvl('charisme') * 4)) {
+              G.rep('legale', 5); G.aff('duval', 6);
+              return 'Vous demandez son matricule. Il se ravise, rend la liasse, et s’en va sans un mot.';
+            }
+            var d2 = G.dirtyVal();
+            if (d2) G.dirtyCash(-d2, 'Saisie');
+            G.heat(12);
+            return 'Tout est saisi et placé sous scellés : ' + G.eur(d2) + '. Vous reverrez cet argent dans deux ans, peut-être.';
+          }
+        },
+        {
+          l: 'Faire jouer Duval', h: 'Affinité Duval ≥ 40', req: function (G) { return G.affVal('duval') >= 40; },
+          run: function (G) { G.heat(-20); G.aff('duval', -3); return 'Un appel, trente secondes. Son collègue vous rend la liasse en serrant les dents.'; }
+        }
+      ]
+    },
+
+    {
+      id: 'racket_debt', w: 6, ico: '🔨', title: 'Des visiteurs pour la dette',
+      cond: function (G) { return (G.flags('debt') || 0) > 0 || (G.flags('cardDebt') || 0) > 0; },
+      text: 'Ils ne frappent pas : ils attendent en bas, adossés à une voiture, et ils ont tout leur temps.',
+      choices: [
+        {
+          l: 'Rembourser une partie maintenant', h: 'Réduit la dette',
+          req: function (G) { return G.canPay(500); },
+          run: function (G) {
+            G.spend(500, 'Acompte');
+            if (G.flags('debt')) G.flag('debt', Math.max(0, G.flags('debt') - 500));
+            else G.flag('cardDebt', Math.max(0, (G.flags('cardDebt') || 0) - 500));
+            G.aff('karim', 5);
+            return 'Cinq cents euros d’acompte. On vous accorde un délai, sans sourire.';
+          }
+        },
+        {
+          l: 'Promettre pour la semaine prochaine', h: 'Gagner du temps, la dette enfle',
+          run: function (G) {
+            if (G.flags('debt')) { G.flag('debt', Math.round(G.flags('debt') * 1.2)); G.s.flags.debtDue = G.day() + 7; }
+            G.add('moral', -10);
+            return 'On vous laisse sept jours. Les intérêts, eux, ne prennent pas de repos.';
+          }
+        },
+        {
+          l: 'Prendre la fuite', h: 'Discrétion — sinon ça fait mal', risky: true,
+          run: function (G) {
+            if (G.chance(30 + G.lvl('discretion') * 7)) { G.xp('discretion', 12); return 'Vous sortez par la cave et le local à vélos. Ils attendent encore à minuit.'; }
+            G.add('sante', -32); G.add('moral', -18);
+            return 'Ils vous rattrapent dans la cour. Ça dure moins d’une minute.';
+          }
+        }
+      ]
+    },
+
+    {
+      id: 'blackmail_back', manual: true, ico: '📸', title: 'La victime a réfléchi',
+      text: 'Celui que vous faisiez chanter ne répond plus au téléphone. Il a pris un avocat — ou pire.',
+      choices: [
+        {
+          l: 'Lâcher l’affaire', h: 'Sage', run: function (G) { G.heat(5); return 'Vous effacez tout et vous n’en reparlez jamais. C’était la bonne décision.'; }
+        },
+        {
+          l: 'Publier ce que vous avez', h: 'Vengeance — et procédure', risky: true,
+          run: function (G) {
+            G.rep('pegre', 5); G.heat(28); G.rep('legale', -10);
+            G.arrestCheck('diffusion d’images sans consentement', 30);
+            return 'Sa vie s’effondre en quarante-huit heures. La vôtre est désormais dans un dossier.';
+          }
+        },
+        {
+          l: 'Doubler la demande', h: 'Charisme — tout ou rien', risky: true,
+          run: function (G) {
+            if (G.chance(30 + G.lvl('charisme') * 5)) {
+              var g = G.rnd(1200, 3000);
+              G.dirtyCash(g, 'Chantage'); return 'Il craque et paie ' + G.eur(g) + ' d’un coup pour en finir.';
+            }
+            G.heat(35); G.arrestCheck('chantage aggravé', 40);
+            return 'Le rendez-vous était une souricière. Il n’était pas venu seul.';
+          }
+        }
+      ]
+    },
+
     {
       id: 'lockeddeposit', manual: true, ico: '🏦', title: 'Placement débloqué',
       text: 'Le placement bloqué arrive à échéance.',

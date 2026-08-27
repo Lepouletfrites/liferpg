@@ -103,6 +103,62 @@
       }
     },
 
+    {
+      id: 'parcels', ico: '📦', n: 'Voler des colis', cat: 'petty', when: 'day',
+      d: 'Les livreurs déposent devant les portes. Il suffit d’arriver avant le destinataire.',
+      hours: 2, energy: 12, sentence: 4, req: {},
+      run: function (G) {
+        var ok = G.crimeRoll(52, { discretion: 4.5, rue: 0.15, gear: { velo: 5, sac: 4 } });
+        if (ok.win) {
+          var n = G.rnd(1, 3), g = 0;
+          for (var i = 0; i < n; i++) g += G.rnd(15, 60);
+          G.dirtyCash(g, 'Colis revendus'); G.heat(ok.heat); G.rep('rue', 2);
+          G.xp('discretion', 8); G.hist('crime');
+          if (G.chance(14)) { G.give('smartphone', 1); return { t: 'money', m: n + ' colis. L’un contenait un téléphone neuf. <b>' + G.eur(g) + '</b>.' }; }
+          return { t: 'money', m: n + ' colis ouverts dans une cage d’escalier. <b>' + G.eur(g) + '</b> d’argent sale.' };
+        }
+        G.heat(16); G.rep('legale', -2);
+        G.arrestCheck('vol de colis', 4);
+        return { t: 'bad', m: 'Une caméra de sonnette connectée. Le propriétaire vous regarde en direct depuis son bureau.' };
+      }
+    },
+
+    {
+      id: 'begscam', ico: '🎻', n: 'Mendicité organisée', cat: 'petty', when: 'day',
+      d: 'Faux plâtre, faux ticket de train, fausse histoire. Le charisme fait tout le travail.',
+      hours: 3, energy: 14, sentence: 3, req: { charisme: 3 },
+      run: function (G) {
+        var ok = G.crimeRoll(64, { charisme: 5, rue: 0.2 });
+        if (ok.win) {
+          var g = G.rnd(35, 70) + G.lvl('charisme') * 9;
+          G.cash(g, 'Aumône extorquée'); G.heat(ok.heat * 0.6); G.rep('rue', 2);
+          G.xp('charisme', 11); G.add('moral', -5); G.hist('crime');
+          return { t: 'money', m: 'Trois heures de comédie devant la gare. <b>' + G.eur(g) + '</b>, et un peu de dégoût.' };
+        }
+        G.heat(10); G.add('moral', -8); G.rep('rue', -2);
+        G.arrestCheck('mendicité agressive', 3);
+        return { t: 'bad', m: 'Quelqu’un vous a reconnu d’hier, avec l’autre jambe dans le plâtre. Ça crie.' };
+      }
+    },
+
+    {
+      id: 'atmscam', ico: '🏧', n: 'Piéger un distributeur', cat: 'petty', when: 'night',
+      d: 'Un bout de film plastique dans la fente, et on récupère les billets coincés.',
+      hours: 2, energy: 10, sentence: 10, req: { intelligence: 3, repRue: 12 },
+      run: function (G) {
+        var ok = G.crimeRoll(46, { intelligence: 4, discretion: 4 });
+        if (ok.win) {
+          var g = G.rnd(80, 260);
+          G.dirtyCash(g, 'Distributeur'); G.heat(ok.heat); G.xp('intelligence', 9);
+          G.xp('discretion', 6); G.hist('crime');
+          return { t: 'money', m: 'Deux clients repartent en pestant contre leur banque. <b>' + G.eur(g) + '</b> restent dans la fente.' };
+        }
+        G.heat(20); G.rep('legale', -3);
+        G.arrestCheck('fraude aux moyens de paiement', 10);
+        return { t: 'bad', m: 'La caméra du distributeur filme vos mains en gros plan pendant quatre minutes.' };
+      }
+    },
+
     /* ─────────────── MOYENNE DÉLINQUANCE ─────────────── */
 
     {
@@ -240,6 +296,85 @@
       }
     },
 
+    {
+      id: 'blackmail', ico: '📸', n: 'Chantage', cat: 'mid', when: 'any',
+      d: 'Une photo, une conversation enregistrée, et un versement qui ne s’arrête jamais.',
+      hours: 4, energy: 16, sentence: 32, req: { intelligence: 4, charisme: 4, repPegre: 12 },
+      run: function (G) {
+        var ok = G.crimeRoll(48, { intelligence: 4, charisme: 4, discretion: 2 });
+        if (ok.win) {
+          var g = G.rnd(400, 1100) + G.lvl('charisme') * 40;
+          G.dirtyCash(g, 'Chantage'); G.rep('pegre', 6); G.rep('legale', -5);
+          G.heat(ok.heat); G.xp('charisme', 12); G.xp('intelligence', 10);
+          G.add('moral', -8); G.hist('crime'); G.hist('dirty');
+          if (G.chance(28)) G.sched('blackmail_back', G.rnd(8, 22));
+          return { t: 'money', m: 'Il paie sans discuter, et il paiera encore. <b>' + G.eur(g) + '</b>.' };
+        }
+        G.heat(30); G.rep('legale', -8);
+        G.arrestCheck('chantage', 32);
+        return { t: 'bad', m: 'Il est allé voir la police le soir même. Il avait moins à perdre que vous ne pensiez.' };
+      }
+    },
+
+    {
+      id: 'freight', ico: '🚛', n: 'Détourner un chargement', cat: 'mid', when: 'night',
+      d: 'Un chauffeur complice, une aire d’autoroute, quarante minutes de transbordement.',
+      hours: 5, energy: 34, sentence: 45, req: { repPegre: 25, item: 'gants', force: 4 },
+      crew: ['bruno'],
+      run: function (G) {
+        var ok = G.crimeRoll(42, { force: 3, discretion: 3.5, intelligence: 2, pegre: 0.3, crew: ['bruno'], gear: { voiture: 8 } });
+        if (ok.win) {
+          var g = G.rnd(1800, 4200) + G.repVal('pegre') * 25;
+          G.dirtyCash(g, 'Chargement'); G.rep('pegre', 9); G.rep('legale', -7);
+          G.heat(ok.heat); G.xp('force', 10); G.xp('discretion', 10); G.hist('crime');
+          return { t: 'money', m: 'La remorque repart à vide vers un entrepôt qui n’existe pas. <b>' + G.eur(g) + '</b>.' };
+        }
+        G.heat(38); G.add('sante', -12); G.rep('legale', -9);
+        G.arrestCheck('vol de fret en bande organisée', 45);
+        return { t: 'bad', m: 'Le chauffeur avait un bouton d’alerte sous le volant. Il l’a utilisé à la troisième minute.' };
+      }
+    },
+
+    {
+      id: 'medtraffic', ico: '💊', n: 'Trafic de médicaments', cat: 'mid', when: 'day',
+      d: 'Fausses ordonnances, pharmacies complaisantes, revente à ceux qui n’ont plus de droits.',
+      hours: 4, energy: 18, sentence: 30, req: { intelligence: 5, repRue: 20 },
+      run: function (G) {
+        var ok = G.crimeRoll(52, { intelligence: 5, charisme: 3, rue: 0.2 });
+        if (ok.win) {
+          var g = G.rnd(350, 800) + G.lvl('intelligence') * 35;
+          G.dirtyCash(g, 'Revente de médicaments'); G.rep('rue', 4); G.rep('pegre', 4); G.rep('legale', -4);
+          G.heat(ok.heat); G.xp('intelligence', 12); G.aff('sofia', -4); G.hist('crime');
+          if (G.chance(30)) G.give('medoc', 2);
+          return { t: 'money', m: 'Trois officines, six ordonnances, aucun contrôle croisé. <b>' + G.eur(g) + '</b>.' };
+        }
+        G.heat(26); G.rep('legale', -7);
+        G.arrestCheck('trafic de médicaments', 30);
+        return { t: 'bad', m: 'La pharmacienne appelle le prescripteur devant vous. Il n’existe pas.' };
+      }
+    },
+
+    {
+      id: 'homejack', ico: '🚪', n: 'Home-jacking', cat: 'mid', when: 'night',
+      d: 'Entrer quand les habitants sont là. Bien plus rentable qu’un cambriolage, et bien plus lourd au tribunal.',
+      hours: 4, energy: 36, sentence: 70, req: { repPegre: 35, item: 'arme', force: 5 },
+      crew: ['bruno', 'nadia'],
+      run: function (G) {
+        var ok = G.crimeRoll(46, { force: 4, discretion: 3, pegre: 0.3, crew: ['bruno', 'nadia'], gear: { gants: 8, brouilleur: 8 } });
+        if (ok.win) {
+          var g = G.rnd(2500, 6000);
+          G.dirtyCash(g, 'Home-jacking'); G.rep('pegre', 12); G.rep('rue', 4); G.rep('legale', -14);
+          G.heat(ok.heat); G.hist('crime'); G.hist('armed'); G.add('moral', -12);
+          G.affFaction('legal', -6);
+          if (G.chance(25)) G.give('bijou', 1);
+          return { t: 'money', m: 'Le coffre s’ouvre en douze minutes parce que quelqu’un donne la combinaison. <b>' + G.eur(g) + '</b>.' };
+        }
+        G.heat(58); G.add('sante', -24); G.rep('legale', -18);
+        G.arrestCheck('vol avec violence et séquestration', 70);
+        return { t: 'bad', m: 'Le fils aîné dormait au premier. Il a hurlé, et tout le quartier a allumé sa lumière.' };
+      }
+    },
+
     /* ─────────────── GRANDE DÉLINQUANCE ─────────────── */
 
     {
@@ -316,7 +451,157 @@
       }
     },
 
+    {
+      id: 'fourgon', ico: '🚚', n: 'Braquage de fourgon blindé', cat: 'big', when: 'day',
+      d: 'Le sommet du métier. Une équipe complète, quatre-vingt-dix secondes, deux caissons.',
+      hours: 5, energy: 45, sentence: 150, req: { repPegre: 65, item: 'arme', item2: 'gants', force: 6 },
+      crew: ['bruno', 'nadia'],
+      run: function (G) {
+        var ok = G.crimeRoll(30, { force: 4, discretion: 4, intelligence: 3, pegre: 0.45, crew: ['bruno', 'nadia'], gear: { brouilleur: 12, voiture: 10 } });
+        if (ok.win) {
+          var g = G.rnd(35000, 90000);
+          G.dirtyCash(g, 'Fourgon'); G.rep('pegre', 25); G.rep('rue', 10); G.rep('legale', -25);
+          G.heat(ok.heat); G.hist('crime'); G.hist('bigscore'); G.hist('armed');
+          G.affFaction('legal', -18);
+          return { t: 'money', m: 'Quatre-vingt-dix secondes chrono, deux caissons découpés. <b>' + G.eur(g) + '</b> à partager.' };
+        }
+        G.heat(85); G.add('sante', -35); G.rep('legale', -30);
+        G.arrestCheck('attaque de transport de fonds', 150);
+        return { t: 'bad', m: 'Les convoyeurs étaient prévenus. La riposte commence avant que la disqueuse n’ait mordu.' };
+      }
+    },
+
+    {
+      id: 'safecrack', ico: '🔐', n: 'Percer un coffre', cat: 'big', when: 'night',
+      d: 'Pas de violence, pas de témoin : une nuit entière seul face à une porte en acier.',
+      hours: 6, energy: 34, sentence: 85, req: { repPegre: 50, item: 'brouilleur', discretion: 7 },
+      crew: ['nadia'],
+      run: function (G) {
+        var ok = G.crimeRoll(34, { discretion: 7, intelligence: 4, pegre: 0.3, crew: ['nadia'], gear: { crochets: 8, gants: 6 } });
+        if (ok.win) {
+          var g = G.rnd(18000, 45000) + G.lvl('discretion') * 900;
+          G.dirtyCash(g, 'Coffre'); G.rep('pegre', 18); G.rep('legale', -10);
+          G.heat(ok.heat * 0.75); G.xp('discretion', 30); G.hist('crime'); G.hist('bigscore');
+          return { t: 'money', m: 'Six heures, deux forets cassés, et un déclic à 4 h 10. <b>' + G.eur(g) + '</b>.' };
+        }
+        G.heat(50); G.rep('legale', -14); G.add('sante', -10);
+        G.arrestCheck('vol avec effraction aggravée', 85);
+        return { t: 'bad', m: 'Le coffre était sur détecteur sismique. La ronde arrive pendant que vous perforez.' };
+      }
+    },
+
+    {
+      id: 'guntraffic', ico: '🔫', n: 'Trafic d’armes', cat: 'big', when: 'night',
+      d: 'On achète loin, on revend ici. Le risque n’est pas la police : ce sont les acheteurs.',
+      hours: 5, energy: 28, sentence: 110, req: { repPegre: 55, money: 4000 },
+      run: function (G) {
+        if (!G.spend(4000, 'Achat du lot')) return { t: 'bad', m: 'Il faut avancer 4 000 € pour le lot.' };
+        var ok = G.crimeRoll(48, { charisme: 3, discretion: 3, pegre: 0.4 });
+        if (ok.win) {
+          var g = G.rnd(12000, 26000);
+          G.dirtyCash(g, 'Trafic d’armes'); G.rep('pegre', 20); G.rep('legale', -15);
+          G.heat(ok.heat); G.hist('crime'); G.hist('bigscore'); G.hist('armed');
+          if (!G.has('arme') && G.chance(45)) G.give('arme', 1);
+          return { t: 'money', m: 'Le lot part en trois livraisons. <b>' + G.eur(g) + '</b>, et personne n’a demandé votre nom.' };
+        }
+        G.heat(60); G.add('sante', -20); G.rep('pegre', -8);
+        if (G.chance(45)) {
+          G.arrestCheck('trafic d’armes', 110);
+          return { t: 'bad', m: 'La livraison était surveillée depuis trois semaines.' };
+        }
+        return { t: 'bad', m: 'Les acheteurs repartent avec le lot sans payer. Vous ne pouvez porter plainte nulle part.' };
+      }
+    },
+
+    {
+      id: 'corrupt', ico: '🏛️', n: 'Corrompre un élu', cat: 'big', when: 'day',
+      d: 'Un marché public contre une enveloppe. La criminalité qui porte un costume.',
+      hours: 4, energy: 20, sentence: 75, req: { repLeg: 45, charisme: 7, money: 15000, biz: 1 },
+      run: function (G) {
+        if (!G.spend(15000, 'Enveloppe')) return { t: 'bad', m: 'Il faut 15 000 € pour ouvrir la conversation.' };
+        var ok = G.crimeRoll(52, { charisme: 5, intelligence: 4, legale: 0.25 });
+        if (ok.win) {
+          var g = G.rnd(60000, 140000);
+          G.cash(g, 'Marché public'); G.rep('legale', -6); G.rep('pegre', 10);
+          G.heat(ok.heat * 0.5); G.xp('charisme', 20); G.hist('crime'); G.hist('bigscore');
+          return { t: 'money', m: 'Le marché vous est attribué « au mieux-disant ». <b>' + G.eur(g) + '</b>, virés proprement.' };
+        }
+        G.heat(35); G.rep('legale', -25);
+        G.arrestCheck('corruption d’agent public', 75);
+        return { t: 'bad', m: 'Il vous laisse parler huit minutes, puis sort son téléphone de sa poche : il enregistrait.' };
+      }
+    },
+
     /* ─────────────── COUVERTURE & ENTRETIEN ─────────────── */
+
+    {
+      id: 'case', ico: '🔭', n: 'Repérer une cible', cat: 'cover', when: 'any',
+      d: 'Passer, revenir, noter les horaires et les caméras. Le prochain coup préparé réussit bien mieux.',
+      hours: 3, energy: 14, sentence: 0, req: {},
+      run: function (G) {
+        var pool = D.CRIMES.filter(function (c) { return c.cat !== 'cover' && !G.checkReq(c.req); });
+        if (!pool.length) return { t: 'bad', m: 'Rien de repérable à votre niveau pour l’instant.' };
+        var target = G.pick(pool);
+        G.flag('cased', target.id);
+        G.xp('discretion', 12); G.xp('intelligence', 6);
+        return { t: 'good', m: 'Trois heures d’observation. <b>' + target.ico + ' ' + target.n +
+          '</b> est repéré : +14 % de réussite et moins de traces au prochain essai.' };
+      }
+    },
+
+    {
+      id: 'burnproof', ico: '🔥', n: 'Faire disparaître les preuves', cat: 'cover', when: 'night',
+      d: 'Brûler les vêtements, changer de téléphone, nettoyer une voiture. Long et efficace.',
+      hours: 4, energy: 20, sentence: 12, req: { repPegre: 12 },
+      run: function (G) {
+        var drop = 22 + G.lvl('discretion') * 2.5;
+        G.heat(-drop);
+        G.xp('discretion', 10);
+        if (G.has('smartphone') && G.chance(50)) {
+          G.take('smartphone', 1);
+          return { t: 'good', m: 'Tout y passe, y compris votre téléphone. Pression policière −' + Math.round(drop) + '.' };
+        }
+        return { t: 'good', m: 'Un bidon, une benne, et deux heures à frotter. Pression policière −' + Math.round(drop) + '.' };
+      }
+    },
+
+    {
+      id: 'newid', ico: '🪪', n: 'Changer d’identité', cat: 'cover', when: 'day',
+      d: 'Un nouveau nom, un nouveau dossier. On repart de zéro — vraiment de zéro.',
+      hours: 5, energy: 22, sentence: 40, req: { repPegre: 40, money: 8000 },
+      run: function (G) {
+        if (!G.spend(8000, 'Identité neuve')) return { t: 'bad', m: 'Il faut 8 000 € pour un dossier crédible.' };
+        var ok = G.crimeRoll(70, { intelligence: 3, pegre: 0.3 });
+        if (ok.win) {
+          G.setHeat(0);
+          G.clearCasier(4);
+          G.rep('legale', -8);
+          G.give('faux', 2);
+          G.xp('discretion', 15); G.hist('crime');
+          return { t: 'good', m: 'Nouveau nom, nouveau numéro de sécurité sociale. <b>Pression policière effacée, casier allégé de 4 mentions.</b>' };
+        }
+        G.heat(25);
+        G.arrestCheck('usurpation d’identité', 40);
+        return { t: 'bad', m: 'Le dossier est refusé au guichet : la photo ne correspond à aucun état civil connu.' };
+      }
+    },
+
+    {
+      id: 'witness', ico: '🤐', n: 'Acheter un témoin', cat: 'cover', when: 'any',
+      d: 'Un témoignage qui change, et une procédure qui s’effondre.',
+      hours: 2, energy: 10, sentence: 25, req: { money: 2500, repPegre: 20 },
+      run: function (G) {
+        if (!G.spend(2500, 'Silence acheté')) return { t: 'bad', m: 'Il faut 2 500 € pour que quelqu’un oublie.' };
+        var ok = G.crimeRoll(66, { charisme: 4, pegre: 0.3 });
+        if (ok.win) {
+          G.clearCasier(1); G.heat(-18); G.xp('charisme', 10); G.hist('crime');
+          return { t: 'good', m: 'Le témoin ne se souvient plus de rien. Une mention disparaît de votre casier.' };
+        }
+        G.heat(22); G.rep('legale', -8);
+        G.arrestCheck('subornation de témoin', 25);
+        return { t: 'bad', m: 'Il empoche l’argent et va tout raconter au juge d’instruction.' };
+      }
+    },
 
     {
       id: 'laylow', ico: '🫥', n: 'Se faire oublier', cat: 'cover', when: 'any',

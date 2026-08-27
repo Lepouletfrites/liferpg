@@ -92,6 +92,62 @@
     if (!this._q) NS.UI.toast((n > 0 ? '+' : '') + this.eur(n) + ' sale' + (label ? ' · ' + label : ''), 'dirty');
   };
 
+  /** Crédite le compte courant (virement de salaire, remboursement…) */
+  G.bankIn = function (n, label) {
+    if (!n) return;
+    if (!this.s.bank.open) { this.cash(n, label); return; }
+    this.s.bank.checking += n;
+    if (n > 0) this.s.totals.earned += n;
+    if (!this._q) {
+      NS.UI.money(n);
+      NS.UI.toast('🏦 ' + (n > 0 ? '+' : '') + this.eur(n) + (label ? ' · ' + label : '') + ' (virement)', 'money');
+      this.checkMilestones();
+    }
+  };
+
+  /* ---------------------------------------------------------
+     Paiement : liquide d'abord, puis compte courant.
+     opts.dirty  : payer en argent sale à la place
+     opts.noBank : refuser la carte (commerces au noir)
+     --------------------------------------------------------- */
+  G.canPay = function (amount, opts) {
+    opts = opts || {};
+    if (opts.dirty) return this.s.dirty >= amount;
+    if (opts.noBank) return this.s.money >= amount;
+    return S.spendable(this.s) >= amount;
+  };
+
+  /** @returns true si le paiement a été effectué */
+  G.spend = function (amount, label, opts) {
+    opts = opts || {};
+    amount = Math.round(amount);
+    if (amount <= 0) return true;
+    if (!this.canPay(amount, opts)) return false;
+
+    if (opts.dirty) { this.dirtyCash(-amount, label); return true; }
+
+    var fromCash = Math.min(this.s.money, amount);
+    var fromBank = amount - fromCash;
+    if (fromCash) this.cash(-fromCash, fromBank ? null : label);
+    if (fromBank) {
+      this.s.bank.checking -= fromBank;
+      this.s.totals.spent += fromBank;
+      if (!this._q) {
+        NS.UI.money(-fromBank);
+        NS.UI.toast('💳 −' + this.eur(fromBank) + (label ? ' · ' + label : '') + ' (carte)', 'money');
+      }
+    }
+    return true;
+  };
+
+  /** Texte court expliquant d'où sortirait l'argent */
+  G.payHint = function (amount) {
+    var s = this.s;
+    if (s.money >= amount) return 'espèces';
+    if (S.spendable(s) >= amount) return s.money > 0 ? 'espèces + carte' : 'carte bancaire';
+    return null;
+  };
+
   G.xp = function (stat, n) {
     var st = this.s.stats[stat];
     if (!st || st.lvl >= D.MAX_LVL) return;
@@ -341,15 +397,31 @@
     if (s.flags.addict) p -= 4 * s.flags.addict;
     p += (s.gauges.moral - 50) * 0.08;
     p -= s.heat * 0.32;
-    p *= this.condition();
-    p = clamp(p, 4, 94);
 
     var crime = this._crime;
     var heat = crime ? Math.round(crime.sentence * 0.45 + 5) : 8;
+
+    /* Repérage préalable : un coup préparé se passe mieux */
+    var cased = crime && s.flags.cased === crime.id;
+    if (cased) { p += 14; heat = Math.round(heat * 0.8); }
+
+    /* Récidive : refaire le même coup trop vite, c'est offrir un motif à la police */
+    if (crime) {
+      var last = (s.crimeLast || {})[crime.id];
+      if (last !== undefined) {
+        var gap = s.day - last;
+        if (gap <= 1) { p -= 12; heat = Math.round(heat * 1.6); }
+        else if (gap <= 3) { p -= 6; heat = Math.round(heat * 1.25); }
+      }
+    }
+
+    p *= this.condition();
+    p = clamp(p, 4, 94);
+
     if (s.flags.ghost) heat = Math.round(heat * 0.75);
     if (this.has('gants')) heat = Math.round(heat * 0.85);
 
-    return { win: this.chance(p), p: p, heat: heat };
+    return { win: this.chance(p), p: p, heat: heat, cased: !!cased };
   };
 
   G.doCrime = function (id) {
@@ -364,6 +436,11 @@
     this._crime = c;
     var res = c.run(this) || {};
     this._crime = null;
+
+    /* mémoire de récidive + consommation du repérage */
+    if (!this.s.crimeLast) this.s.crimeLast = {};
+    this.s.crimeLast[c.id] = this.s.day;
+    if (this.s.flags.cased === c.id) this.s.flags.cased = null;
 
     /* Réaction des factions : le milieu apprécie, le monde propre s'inquiète */
     if (c.cat === 'mid' || c.cat === 'big') {
@@ -602,6 +679,7 @@
     var hours = this.gigHours(j);
     if (this.canDo({ hours: hours, energy: j.energy, when: j.when })) return;
     if (this.s.gauges.hygiene < 30) { NS.UI.toast('Trop sale pour vous présenter', 'bad'); return; }
+    if (j.payBank && !this.s.bank.open) { NS.UI.toast('Ce poste paie par virement : ouvrez un compte', 'bad'); return; }
 
     this.spendTime(hours);
     this.spendEnergy(j.energy);
@@ -611,7 +689,7 @@
     var pay = Math.round(j.pay * seniority * this.condition());
     var bonus = j.bonus ? Math.round(j.bonus(this) * this.condition()) : 0;
 
-    this.cash(pay + bonus, j.n);
+    if (j.payBank) this.bankIn(pay + bonus, j.n); else this.cash(pay + bonus, j.n);
     Object.keys(j.xp).forEach(function (k) { this.xp(k, j.xp[k]); }, this);
     this.rep('legale', j.repLeg);
     this.add('moral', j.moral !== undefined ? j.moral : -3);
@@ -619,7 +697,8 @@
     this.hist('shift');
 
     var msg = '<b>' + j.n + '</b> — ' + hours + ' h. Salaire <b>' + this.eur(pay) + '</b>';
-    msg += bonus > 0 ? ' + ' + this.eur(bonus) + ' de variable.' : (bonus < 0 ? ' ' + this.eur(bonus) + ' de malus.' : '.');
+    msg += bonus > 0 ? ' + ' + this.eur(bonus) + ' de variable' : (bonus < 0 ? ' ' + this.eur(bonus) + ' de malus' : '');
+    msg += j.payBank ? ', viré sur votre compte.' : ', payé en espèces.';
     this.log(msg, 'money');
 
     if (this.s.job.shifts % 10 === 0) {
@@ -671,12 +750,12 @@
     if (e.exam && s.eduProg >= e.sessions + OVERSTUDY_CAP) {
       NS.UI.toast('Vous maîtrisez déjà largement le programme : tentez l’examen.', 'bad'); return;
     }
-    if (s.money < e.cost) { NS.UI.toast('Il faut ' + this.eur(e.cost) + ' par session', 'bad'); return; }
+    if (!this.canPay(e.cost)) { NS.UI.toast('Il faut ' + this.eur(e.cost) + ' par session', 'bad'); return; }
     if (e.hours > S.hoursLeft(s)) { NS.UI.toast('Pas assez de temps', 'bad'); return; }
 
     this.spendTime(e.hours);
     this.spendEnergy(e.energy);
-    if (e.cost) this.cash(-e.cost, 'Formation');
+    if (e.cost) this.spend(e.cost, 'Formation');
 
     this.xp('intelligence', 14);
     this.add('moral', -2);
@@ -779,12 +858,12 @@
     if (s.filiereProg >= lvl.sessions + OVERSTUDY_CAP) {
       NS.UI.toast('Vous maîtrisez déjà largement le programme : tentez l’examen.', 'bad'); return;
     }
-    if (s.money < lvl.cost) { NS.UI.toast('Il faut ' + this.eur(lvl.cost) + ' par session', 'bad'); return; }
+    if (!this.canPay(lvl.cost)) { NS.UI.toast('Il faut ' + this.eur(lvl.cost) + ' par session', 'bad'); return; }
     if (lvl.hours > S.hoursLeft(s)) { NS.UI.toast('Pas assez de temps', 'bad'); return; }
 
     this.spendTime(lvl.hours);
     this.spendEnergy(lvl.energy);
-    if (lvl.cost) this.cash(-lvl.cost, 'Frais de scolarité');
+    if (lvl.cost) this.spend(lvl.cost, 'Frais de scolarité');
 
     s.filiereProg++;
     this.xp('intelligence', 16);
@@ -850,11 +929,11 @@
     if (!d || this.ownBiz(id)) return;
     var r = this.checkReq(d.req);
     if (r) { NS.UI.toast(r, 'bad'); return; }
-    if (this.s.money < d.cost) { NS.UI.toast('Capital insuffisant', 'bad'); return; }
+    if (!this.canPay(d.cost)) { NS.UI.toast('Capital insuffisant', 'bad'); return; }
     if (S.hoursLeft(this.s) < 3) { NS.UI.toast('Pas assez de temps', 'bad'); return; }
 
     this.spendTime(3); this.spendEnergy(12);
-    this.cash(-d.cost, 'Création : ' + d.n);
+    this.spend(d.cost, 'Création : ' + d.n);
     this.s.biz.push({ id: id, lvl: 1 });
     this.rep(d.legal === false ? 'pegre' : 'legale', 6);
     this.xp('intelligence', 25);
@@ -880,11 +959,11 @@
     var d = D.BIZI[id];
     if (b.lvl >= d.maxLvl) { NS.UI.toast('Niveau maximum atteint', 'bad'); return; }
     var cost = this.bizUpCost(b);
-    if (this.s.money < cost) { NS.UI.toast('Il faut ' + this.eur(cost), 'bad'); return; }
+    if (!this.canPay(cost)) { NS.UI.toast('Il faut ' + this.eur(cost), 'bad'); return; }
     if (S.hoursLeft(this.s) < 2) { NS.UI.toast('Pas assez de temps', 'bad'); return; }
 
     this.spendTime(2); this.spendEnergy(10);
-    this.cash(-cost, 'Développement');
+    this.spend(cost, 'Développement');
     b.lvl++;
     this.xp('intelligence', 12); this.xp('charisme', 6);
     this.log('<b>' + d.n + '</b> passe au niveau ' + b.lvl + '. Revenus quotidiens en hausse.', 'good');
@@ -910,12 +989,8 @@
     var r = this.checkReq(it.req);
     if (r) { NS.UI.toast(r, 'bad'); return; }
 
-    if (useDirty) {
-      if (this.s.dirty < it.price) { NS.UI.toast('Argent sale insuffisant', 'bad'); return; }
-      this.dirtyCash(-it.price, it.n);
-    } else {
-      if (this.s.money < it.price) { NS.UI.toast('Argent insuffisant', 'bad'); return; }
-      this.cash(-it.price, it.n);
+    if (!this.spend(it.price, it.n, { dirty: !!useDirty })) {
+      NS.UI.toast(useDirty ? 'Argent sale insuffisant' : 'Argent insuffisant', 'bad'); return;
     }
     this.s.inv[id] = (this.s.inv[id] || 0) + 1;
     this.log('Achat : ' + it.ico + ' <b>' + it.n + '</b> — ' + this.eur(it.price) + '.', 'money');
@@ -956,9 +1031,9 @@
     var r = this.checkReq(req);
     if (r) { NS.UI.toast(r, 'bad'); return; }
     var dep = this.s.flags.noDeposit ? 0 : h.deposit;
-    if (this.s.money < dep) { NS.UI.toast('Caution de ' + this.eur(dep) + ' exigée', 'bad'); return; }
+    if (dep && !this.canPay(dep)) { NS.UI.toast('Caution de ' + this.eur(dep) + ' exigée', 'bad'); return; }
 
-    if (dep) this.cash(-dep, 'Caution');
+    if (dep) this.spend(dep, 'Caution');
     var was = this.s.home;
     this.s.home = id;
     this.log('Vous emménagez : ' + h.ico + ' <b>' + h.name + '</b>.', 'good');
@@ -1209,6 +1284,7 @@
     var cool = 7 + (h.cool || 0) + (s.flags.ghost ? 5 : 0);
     s.heat = clamp(s.heat - cool, 0, 100);
 
+    this.tickShops();
     this.decayRelations();
     this.resolveQuests();
 

@@ -31,6 +31,8 @@
       filiereLvl: 0,        // 0-3 : niveaux validés dans cette filière
       filiereProg: 0,       // séances accumulées vers le niveau suivant
       examStreak: {},       // { clé: échecs consécutifs } — booste la chance à chaque échec
+      shopHeat: {},         // vigilance accumulée par commerce après un vol
+      crimeLast: {},        // dernier jour où chaque coup a été tenté (récidive)
       biz: [],              // [{ id, lvl }]
       bank: {
         open: false, checking: 0, savings: 0, score: 20,
@@ -114,6 +116,8 @@
     if (!st.pending) st.pending = [];
     if (!st.quests) st.quests = [];
     if (!st.npcMet) st.npcMet = {};
+    if (!st.shopHeat) st.shopHeat = {};
+    if (!st.crimeLast) st.crimeLast = {};
     return st;
   };
 
@@ -202,6 +206,11 @@
       if (q > 0) v += q * (st.market.px[id] || 0);
     });
     return Math.round(v);
+  };
+
+  /** Argent réellement mobilisable pour un achat : liquide + compte courant */
+  S.spendable = function (st) {
+    return st.money + (st.bank && st.bank.open ? st.bank.checking : 0);
   };
 
   S.debtTotal = function (st) {

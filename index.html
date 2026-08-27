@@ -10,6 +10,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Bebas+Neue&display=swap" rel="stylesheet">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎩</text></svg>">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rue vers Sommet">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -48,6 +54,7 @@
     <button class="tab" data-tab="travail"><span>💼</span><i>Travail</i></button>
     <button class="tab" data-tab="milieu"><span>🕶️</span><i>Milieu</i></button>
     <button class="tab" data-tab="finance"><span>🏦</span><i>Finance</i></button>
+    <button class="tab" data-tab="ville"><span>🏙️</span><i>Ville</i></button>
     <button class="tab" data-tab="social"><span>👥</span><i>Social</i></button>
     <button class="tab" data-tab="sac"><span>🎒</span><i>Sac</i></button>
     <button class="tab" data-tab="profil"><span>📈</span><i>Profil</i></button>
@@ -106,14 +113,23 @@
 <script src="js/data.crime.js"></script>
 <script src="js/data.work.js"></script>
 <script src="js/data.education.js"></script>
+<script src="js/data.buildings.js"></script>
 <script src="js/data.people.js"></script>
 <script src="js/data.finance.js"></script>
 <script src="js/state.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/finance.js"></script>
+<script src="js/buildings.js"></script>
 <script src="js/events.js"></script>
 <script src="js/probe.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>
+<script>
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+</script>
 </body>
 </html>

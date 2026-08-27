@@ -144,45 +144,45 @@
     {
       id: 'driver', n: 'Chauffeur-livreur', ico: '🚐', hours: 7, energy: 34, pay: 145, when: 'day',
       d: 'Cent quatre-vingts colis par jour, un scanner, un dos qui vieillit vite.',
-      req: { app: 45, addr: true, force: 3, item: 'smartphone' }, casierMax: 3,
+      req: { app: 45, addr: true, force: 3, item: 'smartphone', bank: true }, casierMax: 3, payBank: true,
       xp: { force: 10, charisme: 4 }, repLeg: 3
     },
     {
       id: 'nurseaide', n: 'Aide-soignant·e', ico: '🩺', hours: 7, energy: 36, pay: 168, when: 'any',
       d: 'Le métier le plus utile et le moins bien payé du pays. On vous respecte.',
-      req: { app: 55, addr: true, edu: 2, hyg: 65, charisme: 4 }, casierMax: 1,
+      req: { app: 55, addr: true, edu: 2, hyg: 65, charisme: 4, bank: true }, casierMax: 1, payBank: true,
       xp: { charisme: 10, force: 8 }, repLeg: 5, moral: 3
     },
     {
       id: 'clerk', n: 'Agent administratif', ico: '🗂️', hours: 7, energy: 26, pay: 175, when: 'day',
       d: 'Bureau, horaires fixes, et un diplôme exigé.',
-      req: { app: 62, addr: true, edu: 2, intelligence: 3, hyg: 60 }, casierMax: 1,
+      req: { app: 62, addr: true, edu: 2, intelligence: 3, hyg: 60, bank: true }, casierMax: 1, payBank: true,
       xp: { intelligence: 12, charisme: 4 }, repLeg: 4
     },
     {
       id: 'sales', n: 'Commercial·e', ico: '📈', hours: 7, energy: 32, pay: 250, when: 'day',
       d: 'Fixe modeste, variable indexé sur votre bagout. Aucun diplôme exigé.',
-      req: { app: 70, addr: true, edu: 3, charisme: 5, item: 'propre' }, casierMax: 1,
+      req: { app: 70, addr: true, edu: 3, charisme: 5, item: 'propre', bank: true }, casierMax: 1, payBank: true,
       xp: { charisme: 16, intelligence: 6 }, repLeg: 5,
       bonus: function (G) { return G.lvl('charisme') * 22 + G.rnd(0, 60); }
     },
     {
       id: 'agent', n: 'Agent immobilier', ico: '🔑', hours: 7, energy: 30, pay: 300, when: 'day',
       d: 'Commission sur chaque vente. Le costume fait la moitié du travail. Aucun diplôme exigé.',
-      req: { app: 72, addr: true, edu: 3, charisme: 6, repLeg: 30, item: 'pro' }, casierMax: 0,
+      req: { app: 72, addr: true, edu: 3, charisme: 6, repLeg: 30, item: 'pro', bank: true }, casierMax: 0, payBank: true,
       xp: { charisme: 18, intelligence: 8 }, repLeg: 5,
       bonus: function (G) { return G.chance(35) ? G.rnd(300, 900) : 0; }
     },
     {
       id: 'manager', n: 'Chef de projet', ico: '📊', hours: 8, energy: 34, pay: 410, when: 'day',
       d: 'On vous confie une équipe et un budget, sur la seule foi de votre expérience.',
-      req: { app: 74, addr: true, edu: 3, intelligence: 7, repLeg: 45 }, casierMax: 0,
+      req: { app: 74, addr: true, edu: 3, intelligence: 7, repLeg: 45, bank: true }, casierMax: 0, payBank: true,
       xp: { intelligence: 18, charisme: 10 }, repLeg: 6
     },
     {
       id: 'exec', n: 'Directeur·rice général·e', ico: '🏛️', hours: 8, energy: 30, pay: 980, when: 'day',
       d: 'Le sommet qu’on peut atteindre sans diplôme spécialisé — à force d’expérience pure.',
-      req: { app: 82, addr: true, edu: 3, intelligence: 9, charisme: 8, repLeg: 70, item: 'costume' }, casierMax: 0,
+      req: { app: 82, addr: true, edu: 3, intelligence: 9, charisme: 8, repLeg: 70, item: 'costume', bank: true }, casierMax: 0, payBank: true,
       xp: { intelligence: 20, charisme: 16 }, repLeg: 8,
       bonus: function (G) { return G.lvl('intelligence') * 40; }
     },
@@ -191,19 +191,19 @@
     {
       id: 'dev', n: 'Développeur·euse logiciel', ico: '⌨️', hours: 7, energy: 24, pay: 300, when: 'any',
       d: 'Licence en informatique exigée. On ne vous demande plus d’où vous venez.',
-      req: { app: 50, addr: true, filiere: 'info', filiereLvl: 1, item: 'ordi' }, casierMax: 3,
+      req: { app: 50, addr: true, filiere: 'info', filiereLvl: 1, item: 'ordi', bank: true }, casierMax: 3, payBank: true,
       xp: { intelligence: 20 }, repLeg: 4
     },
     {
       id: 'archsoft', n: 'Architecte logiciel', ico: '🏗️', hours: 7, energy: 26, pay: 560, when: 'any',
       d: 'Vous concevez les systèmes que d’autres développeurs construiront.',
-      req: { app: 60, addr: true, filiere: 'info', filiereLvl: 2, item: 'ordi' }, casierMax: 2,
+      req: { app: 60, addr: true, filiere: 'info', filiereLvl: 2, item: 'ordi', bank: true }, casierMax: 2, payBank: true,
       xp: { intelligence: 22 }, repLeg: 5
     },
     {
       id: 'cto', n: 'Directeur·rice technique', ico: '🖥️', hours: 8, energy: 28, pay: 1350, when: 'day',
       d: 'Doctorat en informatique. Vous décidez de l’architecture d’une entreprise entière.',
-      req: { app: 78, addr: true, filiere: 'info', filiereLvl: 3, repLeg: 55, item: 'costume' }, casierMax: 0,
+      req: { app: 78, addr: true, filiere: 'info', filiereLvl: 3, repLeg: 55, item: 'costume', bank: true }, casierMax: 0, payBank: true,
       xp: { intelligence: 26, charisme: 10 }, repLeg: 8,
       bonus: function (G) { return G.lvl('intelligence') * 35; }
     },
@@ -212,27 +212,27 @@
     {
       id: 'accountmgr', n: 'Chargé·e d’affaires', ico: '🤝', hours: 7, energy: 28, pay: 310, when: 'day',
       d: 'Licence en commerce exigée. Portefeuille de clients, objectifs mensuels.',
-      req: { app: 58, addr: true, filiere: 'commerce', filiereLvl: 1, charisme: 4 }, casierMax: 3,
+      req: { app: 58, addr: true, filiere: 'commerce', filiereLvl: 1, charisme: 4, bank: true }, casierMax: 3, payBank: true,
       xp: { charisme: 14 }, repLeg: 4
     },
     {
       id: 'trader', n: 'Opérateur de marché', ico: '💹', hours: 8, energy: 38, pay: 560, when: 'day',
       d: 'Master en commerce exigé. Salle de marché, écrans, cris.',
-      req: { app: 76, addr: true, filiere: 'commerce', filiereLvl: 2, repLeg: 40, item: 'costume' }, casierMax: 0,
+      req: { app: 76, addr: true, filiere: 'commerce', filiereLvl: 2, repLeg: 40, item: 'costume', bank: true }, casierMax: 0, payBank: true,
       xp: { intelligence: 24 }, repLeg: 6,
       bonus: function (G) { return G.chance(45) ? G.rnd(200, 1400) : -G.rnd(0, 300); }
     },
     {
       id: 'salesdir', n: 'Directeur·rice commercial·e', ico: '📢', hours: 8, energy: 30, pay: 580, when: 'day',
       d: 'Master en commerce exigé. Vous pilotez toute la force de vente.',
-      req: { app: 70, addr: true, filiere: 'commerce', filiereLvl: 2, charisme: 6, item: 'costume' }, casierMax: 1,
+      req: { app: 70, addr: true, filiere: 'commerce', filiereLvl: 2, charisme: 6, item: 'costume', bank: true }, casierMax: 1, payBank: true,
       xp: { charisme: 20 }, repLeg: 6,
       bonus: function (G) { return G.lvl('charisme') * 25 + G.rnd(0, 80); }
     },
     {
       id: 'execvp', n: 'Directeur·rice général·e adjoint·e', ico: '🏢', hours: 8, energy: 28, pay: 1450, when: 'day',
       d: 'Executive MBA exigé. Le second poste le mieux payé de l’entreprise.',
-      req: { app: 82, addr: true, filiere: 'commerce', filiereLvl: 3, repLeg: 65, item: 'costume' }, casierMax: 0,
+      req: { app: 82, addr: true, filiere: 'commerce', filiereLvl: 3, repLeg: 65, item: 'costume', bank: true }, casierMax: 0, payBank: true,
       xp: { charisme: 24, intelligence: 16 }, repLeg: 9,
       bonus: function (G) { return G.lvl('charisme') * 40; }
     },
@@ -241,19 +241,19 @@
     {
       id: 'corplaw', n: 'Juriste d’entreprise', ico: '📚', hours: 7, energy: 24, pay: 340, when: 'day',
       d: 'Licence en droit exigée. Contrats, conformité, litiges mineurs.',
-      req: { app: 62, addr: true, filiere: 'droit', filiereLvl: 1 }, casierMax: 1,
+      req: { app: 62, addr: true, filiere: 'droit', filiereLvl: 1, bank: true }, casierMax: 1, payBank: true,
       xp: { intelligence: 18 }, repLeg: 5
     },
     {
       id: 'lawyer', n: 'Avocat·e d’affaires', ico: '⚖️', hours: 8, energy: 32, pay: 660, when: 'day',
       d: 'Master en droit exigé. Vous connaissez la loi par les deux bouts.',
-      req: { app: 78, addr: true, filiere: 'droit', filiereLvl: 2, repLeg: 55, item: 'costume' }, casierMax: 0,
+      req: { app: 78, addr: true, filiere: 'droit', filiereLvl: 2, repLeg: 55, item: 'costume', bank: true }, casierMax: 0, payBank: true,
       xp: { intelligence: 24, charisme: 14 }, repLeg: 8
     },
     {
       id: 'partner', n: 'Associé·e de cabinet', ico: '🏛️', hours: 8, energy: 26, pay: 1600, when: 'day',
       d: 'Doctorat en droit exigé. Votre nom est désormais sur la porte.',
-      req: { app: 84, addr: true, filiere: 'droit', filiereLvl: 3, repLeg: 65, item: 'costume' }, casierMax: 0,
+      req: { app: 84, addr: true, filiere: 'droit', filiereLvl: 3, repLeg: 65, item: 'costume', bank: true }, casierMax: 0, payBank: true,
       xp: { intelligence: 28, charisme: 16 }, repLeg: 10
     },
 
@@ -261,19 +261,19 @@
     {
       id: 'nursediploma', n: 'Infirmier·ère diplômé·e', ico: '💉', hours: 7, energy: 32, pay: 290, when: 'any',
       d: 'Licence en soins infirmiers exigée. Bien plus qu’une aide-soignante : un vrai diplôme d’État.',
-      req: { app: 52, addr: true, filiere: 'sante', filiereLvl: 1, hyg: 60 }, casierMax: 2,
+      req: { app: 52, addr: true, filiere: 'sante', filiereLvl: 1, hyg: 60, bank: true }, casierMax: 2, payBank: true,
       xp: { charisme: 10, force: 6 }, repLeg: 5
     },
     {
       id: 'headcare', n: 'Cadre de santé', ico: '🩺', hours: 8, energy: 30, pay: 540, when: 'day',
       d: 'Master en santé publique exigé. Vous encadrez un service entier.',
-      req: { app: 64, addr: true, filiere: 'sante', filiereLvl: 2 }, casierMax: 1,
+      req: { app: 64, addr: true, filiere: 'sante', filiereLvl: 2, bank: true }, casierMax: 1, payBank: true,
       xp: { intelligence: 16, charisme: 12 }, repLeg: 6
     },
     {
       id: 'doctor', n: 'Médecin spécialiste', ico: '⚕️', hours: 8, energy: 32, pay: 1800, when: 'any',
       d: 'Doctorat en médecine exigé. Le poste le mieux payé du jeu — et le plus long à obtenir.',
-      req: { app: 80, addr: true, filiere: 'sante', filiereLvl: 3, repLeg: 55 }, casierMax: 0,
+      req: { app: 80, addr: true, filiere: 'sante', filiereLvl: 3, repLeg: 55, bank: true }, casierMax: 0, payBank: true,
       xp: { intelligence: 30 }, repLeg: 12,
       bonus: function (G) { return G.chance(30) ? G.rnd(200, 600) : 0; }
     },
@@ -282,19 +282,19 @@
     {
       id: 'juniorEng', n: 'Ingénieur·e junior', ico: '⚙️', hours: 7, energy: 28, pay: 330, when: 'day',
       d: 'Licence en ingénierie exigée. Bureau d’études, premiers plans signés.',
-      req: { app: 56, addr: true, filiere: 'ingenierie', filiereLvl: 1, force: 2 }, casierMax: 3,
+      req: { app: 56, addr: true, filiere: 'ingenierie', filiereLvl: 1, force: 2, bank: true }, casierMax: 3, payBank: true,
       xp: { intelligence: 16, force: 6 }, repLeg: 4
     },
     {
       id: 'seniorEng', n: 'Ingénieur·e senior', ico: '🔩', hours: 8, energy: 28, pay: 610, when: 'day',
       d: 'Master en ingénierie exigé. Vous validez les plans des autres.',
-      req: { app: 66, addr: true, filiere: 'ingenierie', filiereLvl: 2 }, casierMax: 1,
+      req: { app: 66, addr: true, filiere: 'ingenierie', filiereLvl: 2, bank: true }, casierMax: 1, payBank: true,
       xp: { intelligence: 22 }, repLeg: 6
     },
     {
       id: 'rndDir', n: 'Directeur·rice R&D', ico: '🧪', hours: 8, energy: 28, pay: 1500, when: 'day',
       d: 'Doctorat en ingénierie exigé. Le laboratoire est à vous.',
-      req: { app: 80, addr: true, filiere: 'ingenierie', filiereLvl: 3, repLeg: 50, item: 'costume' }, casierMax: 0,
+      req: { app: 80, addr: true, filiere: 'ingenierie', filiereLvl: 3, repLeg: 50, item: 'costume', bank: true }, casierMax: 0, payBank: true,
       xp: { intelligence: 28 }, repLeg: 9
     }
   ];

@@ -261,5 +261,97 @@
     return Math.max(5, Math.min(95, p * G.condition()));
   };
 
+  /* ---------------------------------------------------------
+     Aperçu express affiché directement sur les cartes.
+     Peu de tirages, mis en cache : il ne s'agit pas d'être exact
+     mais de montrer d'un coup d'œil ce que l'action rapporte.
+     --------------------------------------------------------- */
+  var PREVIEW_RUNS = 12;
+  var pvCache = {};
+
+  function cacheKey(kind, id) {
+    var s = NS.G.s;
+    return kind + ':' + id + ':' + s.day + ':' + s.hour + ':' +
+      D.STAT_IDS.map(function (k) { return s.stats[k].lvl; }).join('') + ':' +
+      D.GAUGES.map(function (g) { return Math.round(s.gauges[g.id] / 8); }).join('') + ':' +
+      Math.round(s.heat / 8) + ':' + Object.keys(s.inv).length + ':' +
+      Math.round(s.rep.rue) + ':' + Math.round(s.rep.pegre) + ':' + (s.flags.cased || '');
+  }
+
+  P.clearPreviews = function () { pvCache = {}; };
+
+  /**
+   * @returns { money, dirty, gauges:{}, success } — moyennes sur quelques tirages
+   */
+  P.preview = function (kind, id, spec) {
+    var key = cacheKey(kind, id);
+    if (pvCache[key]) return pvCache[key];
+    var out;
+    try {
+      var acc = P.simulate(spec, PREVIEW_RUNS);
+      var n = acc.n || 1;
+      out = {
+        money: stats(acc.money).avg,
+        dirty: stats(acc.dirty).avg,
+        gauges: {},
+        success: acc.ok / n * 100
+      };
+      D.GAUGES.forEach(function (g) { out.gauges[g.id] = acc.gauges[g.id] / n; });
+    } catch (e) {
+      out = { money: 0, dirty: 0, gauges: {}, success: 0 };
+    }
+    pvCache[key] = out;
+    return out;
+  };
+
+  P.previewAction = function (a) {
+    return P.preview('a', a.id, {
+      hours: a.hours || 0, energy: a.energy || 0,
+      exec: function (g) { return a.run(g); }
+    });
+  };
+
+  P.previewCrime = function (c) {
+    return P.preview('c', c.id, {
+      hours: c.hours || 0, energy: c.energy || 0,
+      exec: function (g) { g._crime = c; var r = c.run(g); g._crime = null; return r; }
+    });
+  };
+
+  P.previewGig = function (gg) {
+    return P.preview('g', gg.id, {
+      hours: NS.G.gigHours(gg), energy: gg.energy || 0,
+      exec: function (g) {
+        var pay = Math.round(gg.pay(g) * g.condition());
+        g.cash(pay, gg.n);
+        if (gg.hyg) g.add('hygiene', gg.hyg);
+        if (gg.faim) g.add('faim', gg.faim);
+        g.add('moral', gg.moral !== undefined ? gg.moral : -2);
+        return { t: 'money' };
+      }
+    });
+  };
+
+  P.previewShift = function (j, shifts) {
+    return P.preview('s', j.id + (shifts || 0), {
+      hours: NS.G.gigHours(j), energy: j.energy || 0,
+      exec: function (g) {
+        var sen = 1 + Math.floor((shifts || 0) / 10) * 0.08;
+        var pay = Math.round(j.pay * sen * g.condition());
+        var bonus = j.bonus ? Math.round(j.bonus(g) * g.condition()) : 0;
+        if (j.payBank) g.bankIn(pay + bonus, j.n); else g.cash(pay + bonus, j.n);
+        g.add('moral', j.moral !== undefined ? j.moral : -3);
+        g.add('hygiene', -6);
+        return { t: 'money' };
+      }
+    });
+  };
+
+  /** Un salaire viré n'apparaît pas dans `money` : on le lit sur le compte */
+  P.previewJobPay = function (j, shifts) {
+    var sen = 1 + Math.floor((shifts || 0) / 10) * 0.08;
+    return Math.round(j.pay * sen * NS.G.condition());
+  };
+
   NS.PROBE = P;
 })(window.LifeRPG);
