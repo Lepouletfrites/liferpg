@@ -130,6 +130,11 @@
     if (!st.crimeLast) st.crimeLast = {};
     if (typeof st.rentDue !== 'number') st.rentDue = 0;
     if (typeof st.stash !== 'number') st.stash = 0;
+    if (st.biz) st.biz.forEach(function (b) {
+      var d = D.BIZI[b.id];
+      if (!b.name) b.name = d ? d.n : 'Entreprise';
+      if (typeof b.health !== 'number') b.health = 100;
+    });
     return st;
   };
 
@@ -225,11 +230,17 @@
     return Math.round(v);
   };
 
+  /** Facteur de rendement lié à la santé de l'entreprise (0.35 à 1) : négligée, elle rapporte moins avant de fermer */
+  S.bizHealthFactor = function (b) {
+    var h = b.health === undefined ? 100 : b.health;
+    return 0.35 + 0.65 * Math.max(0, Math.min(100, h)) / 100;
+  };
+
   S.bizValue = function (st) {
     var v = 0;
     st.biz.forEach(function (b) {
       var d = D.BIZI[b.id];
-      if (d) v += d.cost * b.lvl * 0.85;
+      if (d) v += d.cost * b.lvl * 0.85 * S.bizHealthFactor(b);
     });
     return Math.round(v);
   };
@@ -307,7 +318,7 @@
     var total = 0, mult = S.bizMult(st);
     st.biz.forEach(function (b) {
       var d = D.BIZI[b.id];
-      if (d && d.legal !== false) total += d.rev * b.lvl * mult;
+      if (d && d.legal !== false) total += d.rev * b.lvl * mult * S.bizHealthFactor(b);
     });
     return Math.round(total);
   };
@@ -317,7 +328,7 @@
     var total = 0, mult = S.bizMult(st);
     st.biz.forEach(function (b) {
       var d = D.BIZI[b.id];
-      if (d && d.legal === false) total += d.rev * b.lvl * mult;
+      if (d && d.legal === false) total += d.rev * b.lvl * mult * S.bizHealthFactor(b);
     });
     return Math.round(total);
   };

@@ -1023,11 +1023,12 @@
         var b = G.pick(G.s.biz);
         var d = D.BIZI[b.id];
         if (!d) return null;
+        var name = G.bizName(b);
         var variant = G.rnd(1, 100);
         if (variant <= 40) {
           var loss = scaled(G, 150, { min: 60 });
           return {
-            ico: d.ico, title: 'Un incident chez ' + d.n,
+            ico: d.ico, title: 'Un incident chez ' + name,
             text: pick(G, [
               'Une panne immobilise l’activité une demi-journée.',
               'Un dégât des eaux a touché le stock.',
@@ -1036,14 +1037,14 @@
             ]),
             choices: [
               { l: 'Régler tout de suite', h: '−' + G.eur(loss), run: function (G) {
-                if (!G.spend(loss, 'Réparation ' + d.n)) { if (b.lvl > 1) b.lvl--; return 'Vous ne pouvez pas payer. L’activité recule d’un niveau.'; }
+                if (!G.spend(loss, 'Réparation ' + name)) { b.health = Math.max(0, b.health - 25); return 'Vous ne pouvez pas payer. La santé de l’activité en pâtit.'; }
                 return 'Réglé dans la journée. ' + G.eur(loss) + ', et personne n’a rien remarqué.';
               } },
               { l: 'Laisser traîner', h: 'Risque pour l’activité', risky: true, run: function (G) {
                 if (G.chance(45)) { return 'Ça se tasse tout seul. Vous avez eu de la chance.'; }
-                if (b.lvl > 1) b.lvl--;
+                b.health = Math.max(0, b.health - 20);
                 G.rep('legale', -3);
-                return 'Le problème s’aggrave. ' + d.n + ' redescend d’un niveau.';
+                return 'Le problème s’aggrave. ' + name + ' en ressort affaiblie.';
               } }
             ]
           };
@@ -1051,7 +1052,7 @@
         if (variant <= 70) {
           var gain = scaled(G, 300, { min: 100 });
           return {
-            ico: d.ico, title: 'Une opportunité pour ' + d.n,
+            ico: d.ico, title: 'Une opportunité pour ' + name,
             text: pick(G, [
               'Un client important veut un contrat cadre.',
               'Un concurrent ferme et vous propose sa clientèle.',
@@ -1073,7 +1074,7 @@
           };
         }
         return {
-          ico: '🧾', title: 'Un contrôle chez ' + d.n,
+          ico: '🧾', title: 'Un contrôle chez ' + name,
           text: 'Un inspecteur passe les comptes en revue' + (G.dirtyVal() > 500 ? ', et vos comptes ont des zones d’ombre.' : '.'),
           choices: [
             { l: 'Coopérer', h: 'Propre mais coûteux', run: function (G) {

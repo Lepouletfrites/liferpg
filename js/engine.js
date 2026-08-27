@@ -1050,7 +1050,13 @@
      ========================================================= */
   G.ownBiz = function (id) { return this.s.biz.filter(function (b) { return b.id === id; })[0]; };
 
-  G.buyBiz = function (id) {
+  /** Nom d'affiche d'une entreprise possédée : celui choisi par le joueur, ou celui du secteur */
+  G.bizName = function (b) {
+    var d = D.BIZI[b.id];
+    return (b && b.name) || (d ? d.n : 'Entreprise');
+  };
+
+  G.buyBiz = function (id, name) {
     var d = D.BIZI[id];
     if (!d || this.ownBiz(id)) return;
     var r = this.checkReq(d.req);
@@ -1058,12 +1064,13 @@
     if (!this.canPay(d.cost)) { NS.UI.toast('Capital insuffisant', 'bad'); return; }
     if (S.hoursLeft(this.s) < 3) { NS.UI.toast('Pas assez de temps', 'bad'); return; }
 
+    var clean = String(name || '').replace(/[<>]/g, '').trim().slice(0, 28) || d.n;
     this.spendTime(3); this.spendEnergy(12);
-    this.spend(d.cost, 'Création : ' + d.n);
-    this.s.biz.push({ id: id, lvl: 1 });
+    this.spend(d.cost, 'Création : ' + clean);
+    this.s.biz.push({ id: id, lvl: 1, name: clean, health: 100 });
     this.rep(d.legal === false ? 'pegre' : 'legale', 6);
     this.xp('intelligence', 25);
-    this.log('<b>' + d.n + ' créée.</b> Vous n’êtes plus salarié de votre propre vie.', 'good');
+    this.log('<b>' + clean + '</b> (' + d.n + ') est fondée. Vous n’êtes plus salarié de votre propre vie.', 'good');
     this.milestone('firstBiz', '🚀 Premier entrepreneur',
       'Vous possédez une entreprise. À partir d’ici, votre argent travaille aussi la nuit.');
     this.afterAction(d);
@@ -1072,12 +1079,18 @@
   G.grantBiz = function (id, lvl) {
     var b = this.ownBiz(id);
     if (b) { b.lvl = Math.max(b.lvl, lvl); return; }
-    this.s.biz.push({ id: id, lvl: lvl });
+    this.s.biz.push({ id: id, lvl: lvl, health: 100 });
   };
 
   G.bizUpCost = function (b) {
     var d = D.BIZI[b.id];
     return Math.round(d.cost * 0.65 * Math.pow(1.55, b.lvl));
+  };
+
+  /** Coût pour restaurer la santé d'une entreprise négligée */
+  G.bizManageCost = function (b) {
+    var d = D.BIZI[b.id];
+    return Math.round(d.cost * 0.05 * (1 + b.lvl * 0.15));
   };
 
   G.upgradeBiz = function (id) {
@@ -1091,18 +1104,38 @@
     this.spendTime(2); this.spendEnergy(10);
     this.spend(cost, 'Développement');
     b.lvl++;
+    b.health = Math.min(100, (b.health === undefined ? 100 : b.health) + 12);
     this.xp('intelligence', 12); this.xp('charisme', 6);
-    this.log('<b>' + d.n + '</b> passe au niveau ' + b.lvl + '. Revenus quotidiens en hausse.', 'good');
+    this.log('<b>' + this.bizName(b) + '</b> passe au niveau ' + b.lvl + '. Revenus quotidiens en hausse.', 'good');
+    this.afterAction(d);
+  };
+
+  /** Réinvestir pour restaurer la santé d'une entreprise négligée, avant la faillite */
+  G.manageBiz = function (id) {
+    var b = this.ownBiz(id); if (!b) return;
+    var d = D.BIZI[id];
+    var health = b.health === undefined ? 100 : b.health;
+    if (health >= 95) { NS.UI.toast('L’activité tourne déjà bien', 'bad'); return; }
+    var cost = this.bizManageCost(b);
+    if (!this.canPay(cost)) { NS.UI.toast('Il faut ' + this.eur(cost), 'bad'); return; }
+    if (S.hoursLeft(this.s) < 2) { NS.UI.toast('Pas assez de temps', 'bad'); return; }
+
+    this.spendTime(2); this.spendEnergy(8);
+    this.spend(cost, 'Gestion : ' + this.bizName(b));
+    b.health = Math.min(100, health + 35);
+    this.xp('intelligence', 8); this.xp('charisme', 4);
+    this.log('Vous reprenez en main <b>' + this.bizName(b) + '</b>. La situation s’améliore.', 'good');
     this.afterAction(d);
   };
 
   G.sellBiz = function (id) {
     var b = this.ownBiz(id); if (!b) return;
     var d = D.BIZI[id];
-    var price = Math.round(d.cost * b.lvl * 0.7);
+    var price = Math.round(d.cost * b.lvl * 0.7 * S.bizHealthFactor(b));
+    var name = this.bizName(b);
     this.s.biz = this.s.biz.filter(function (x) { return x.id !== id; });
-    this.cash(price, 'Cession : ' + d.n);
-    this.log('Vous cédez <b>' + d.n + '</b> pour ' + this.eur(price) + '.', 'money');
+    this.cash(price, 'Cession : ' + name);
+    this.log('Vous cédez <b>' + name + '</b> pour ' + this.eur(price) + '.', 'money');
     NS.UI.refresh(); S.save(this.s);
   };
 
@@ -1607,10 +1640,28 @@
     });
   };
 
-  /** Revenus des entreprises (au ralenti si vous n'êtes pas là) */
+  /** Revenus des entreprises (au ralenti si vous n'êtes pas là) — négligées, elles perdent en santé puis ferment */
   G.tickBiz = function (lines, away) {
-    var s = this.s;
+    var s = this.s, self = this;
     var factor = away ? 0.45 : 1;
+
+    var closed = [];
+    s.biz.forEach(function (b) {
+      var d = D.BIZI[b.id]; if (!d) return;
+      var decay = (1.3 + b.lvl * 0.2 + (d.legal === false ? 0.6 : 0)) * (away ? 1.6 : 1) * self.rndF(0.75, 1.3);
+      b.health = Math.max(0, Math.min(100, (b.health === undefined ? 100 : b.health) - decay));
+      if (b.health <= 0) closed.push(b);
+    });
+    if (closed.length) {
+      s.biz = s.biz.filter(function (b) { return closed.indexOf(b) === -1; });
+      closed.forEach(function (b) {
+        var name = self.bizName(b);
+        self.add('moral', -18);
+        lines.push('<b>' + name + '</b> dépose le bilan : négligée trop longtemps, elle ferme définitivement.');
+        if (!self._q) NS.UI.flash('📉 Faillite — ' + name, 'bad');
+      });
+    }
+
     var inc = Math.round(S.bizIncome(s) * factor);
     if (inc > 0) {
       if (s.bank.open) { s.bank.checking += inc; s.totals.earned += inc; }

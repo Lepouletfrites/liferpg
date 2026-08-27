@@ -10,7 +10,7 @@
   var tab = 'survie';
   var sub = {
     survie: 'now', travail: 'gigs', milieu: 'coups',
-    finance: 'banque', sac: 'shop', profil: 'stats', ville: 'commerces'
+    finance: 'banque', profil: 'stats', ville: 'commerces'
   };
   var modalQueue = [], modalOpen = false, sellMode = false;
 
@@ -579,25 +579,38 @@
           (S.bizDirtyIncome(s) ? kv('Revenu quotidien sale', eur(S.bizDirtyIncome(s)), 'v-dirty') : '') +
           (S.washCap(s) ? kv('Capacité de blanchiment / jour', eur(S.washCap(s))) : '') +
           (s.flags.network ? kv('Réseau d’Alex Vidal', '+30 %', 'v-good') : '') + '</div>');
-        h.push('<div class="cards mt">' + s.biz.map(function (b) {
+        h.push(hint('Une entreprise qu’on néglige perd en <b>santé</b> et rapporte de moins en moins, ' +
+          'jusqu’à la faillite pure et simple. « Développer » monte le niveau ; « Reprendre en main » sauve une activité fragile.'));
+        s.biz.forEach(function (b) {
           var d = D.BIZI[b.id];
           var up = G.bizUpCost(b);
+          var manageCost = G.bizManageCost(b);
           var maxed = b.lvl >= d.maxLvl;
-          return card({
-            ico: d.ico, title: d.n + ' <span class="tag">Niv. ' + b.lvl + '</span>',
-            desc: 'Rapporte ' + eur(d.rev * b.lvl * S.bizMult(s)) + ' par jour' + (d.legal === false ? ' en argent sale' : '') + '.',
-            accent: d.legal === false ? 'var(--danger)' : 'var(--purple)',
-            costs: maxed ? [cost('Niveau maximum', 'cost--pay')] :
-              [cost('⏱ 2 h', 'cost--time'), cost('Développer : ' + eur(up), 'cost--price')],
-            lock: maxed ? 'Niveau maximum atteint' : (s.money < up ? 'Il faut ' + eur(up) : null),
-            act: 'bizup', arg: b.id
-          });
-        }).join('') + '</div>');
+          var health = b.health === undefined ? 100 : b.health;
+          var hCls = health < 25 ? 'v-bad' : (health < 60 ? '' : 'v-good');
+          var fillColor = health < 25 ? 'var(--danger)' : (health < 60 ? 'var(--gold)' : 'var(--good)');
+          var rev = Math.round(d.rev * b.lvl * S.bizMult(s) * S.bizHealthFactor(b));
+          h.push('<div class="panel mt"><div class="panel__hd"><div class="panel__t">' + d.ico + ' ' + G.bizName(b) + '</div>' +
+            '<span class="tag">Niv. ' + b.lvl + '/' + d.maxLvl + '</span></div>' +
+            kv('Secteur', d.n) +
+            kv('Revenu quotidien', eur(rev) + (d.legal === false ? ' (sale)' : ''), d.legal === false ? 'v-dirty' : 'v-good') +
+            kv('Santé de l’activité', Math.round(health) + ' / 100', hCls) +
+            '<div class="stat__bar mt"><div class="stat__fill" style="width:' + Math.max(0, Math.min(100, health)) +
+            '%;background:' + fillColor + '"></div></div>' +
+            (health < 40 ? '<p class="hint">⚠️ En dessous de zéro, l’activité ferme et tout est perdu.</p>' : '') +
+            '</div>');
+          h.push('<div class="btnRow">' +
+            '<button class="btn btn--gold btn--sm" data-act="bizup" data-arg="' + b.id + '">🔧 ' +
+            (maxed ? 'Niveau maximum' : 'Développer · ' + eur(up)) + '</button>' +
+            '<button class="btn btn--ghost btn--sm" data-act="bizmanage" data-arg="' + b.id + '">🩺 Reprendre en main · ' + eur(manageCost) + '</button>' +
+            '</div>');
+        });
         h.push('<div class="btnRow"><button class="btn btn--ghost btn--sm" data-act="bizsell">💱 Céder une entreprise</button></div>');
       }
 
-      h.push(sectionTitle('Créer une entreprise'));
-      h.push(hint('C’est le seul moteur capable de vous mener au million : vos entreprises produisent <b>chaque nuit</b>, même quand vous dormez.'));
+      h.push(sectionTitle('Fonder une entreprise'));
+      h.push(hint('C’est le seul moteur capable de vous mener au million : vos entreprises produisent <b>chaque nuit</b>, même quand vous dormez. ' +
+        'Choisissez un secteur, donnez un nom à votre affaire — les frais de création varient fortement selon le secteur.'));
       h.push(cardsWithLocked(D.BIZ, function (d) {
         if (G.ownBiz(d.id)) return null;
         var lock = G.checkReq(d.req) || (s.money < d.cost ? 'Capital de ' + eur(d.cost) + ' requis' : null);
@@ -606,7 +619,7 @@
           costs: [cost('⏱ 3 h', 'cost--time'), cost(eur(d.cost), 'cost--price'),
           cost('≈ ' + eur(d.rev) + '/jour', d.legal === false ? 'cost--risk' : 'cost--pay'),
           d.wash ? cost('🧼 Blanchiment') : null],
-          lock: lock, act: 'bizbuy', arg: d.id
+          lock: lock, act: 'bizsector', arg: d.id
         };
       }, 'Hors de portée pour l’instant'));
     }
@@ -1122,48 +1135,6 @@
     { id: 'luxe', l: '💎 Patrimoine' }
   ];
 
-  function renderSac() {
-    var s = G.s, h = [];
-    h.push(subtabs('sac', [{ id: 'inv', l: 'Inventaire' }]));
-    if (sub.sac !== 'inv') sub.sac = 'inv';
-
-    if (sub.sac === 'inv') {
-      var tenue = S.bestOf(s, 'tenue', 'style'), tr = S.bestOf(s, 'transport', 'speed'), te = S.bestOf(s, 'tech', 'tech');
-      h.push(sectionTitle('Équipement porté'));
-      h.push('<div class="panel">' +
-        kv('👔 Tenue', tenue ? tenue.ico + ' ' + tenue.n : '— guenilles') +
-        kv('🚲 Transport', tr ? tr.ico + ' ' + tr.n : '— à pied') +
-        kv('📱 Technologie', te ? te.ico + ' ' + te.n : '— aucune') +
-        kv('✨ Apparence', S.apparence(s) + ' / 100') +
-        (s.flags.groomed > s.day ? kv('💈 Fraîchement coiffé', 'encore ' + (s.flags.groomed - s.day) + ' j', 'v-good') : '') +
-        '</div>');
-      h.push(hint('Le meilleur objet de chaque catégorie est utilisé automatiquement. ' +
-        'Les achats se font désormais dans les <b>commerces</b> de l’onglet 🏙️ Ville.'));
-
-      h.push(sectionTitle('Sac'));
-      var ids = Object.keys(s.inv).filter(function (k) { return s.inv[k] > 0; });
-      if (!ids.length) h.push(empty('🎒', 'Votre sac est vide.'));
-      else h.push('<div class="cards">' + ids.map(function (id) {
-        var it = D.ITEM[id];
-        if (!it) return '';
-        return card({
-          ico: it.ico, title: it.n + ' <span class="tag">×' + s.inv[id] + '</span>',
-          desc: it.use ? 'Utiliser : ' + Object.keys(it.use).map(function (k) {
-            return k === 'xp' ? '+' + it.use.xp[1] + ' XP ' + it.use.xp[0] : (it.use[k] > 0 ? '+' : '') + it.use[k] + ' ' + k;
-          }).join(', ') : it.d,
-          accent: sellMode ? 'var(--gold)' : (it.use ? 'var(--good)' : 'var(--line)'),
-          costs: [cost(sellMode ? '💱 Appuyer pour revendre' : (it.use ? 'Appuyer pour utiliser' : 'Objet durable')),
-          sellMode ? cost('Revente : ' + eur(it.price * (it.cat === 'luxe' ? 0.9 : 0.5)), 'cost--price') : null],
-          act: it.use ? 'use' : 'sell', arg: id
-        });
-      }).join('') + '</div>');
-      if (ids.length) h.push('<div class="btnRow"><button class="btn ' + (sellMode ? 'btn--gold' : 'btn--ghost') +
-        '" data-act="sellmode">💱 ' + (sellMode ? 'Quitter le mode revente' : 'Mode revente') + '</button></div>');
-    }
-
-    return h.join('');
-  }
-
   /* =========================================================
      Formation — tronc commun, examens, filières post-bac
      ========================================================= */
@@ -1523,7 +1494,7 @@
      ========================================================= */
   function renderProfil() {
     var s = G.s, h = [];
-    h.push(subtabs('profil', [{ id: 'stats', l: 'Profil' }, { id: 'log', l: 'Journal' }]));
+    h.push(subtabs('profil', [{ id: 'stats', l: 'Profil' }, { id: 'inv', l: 'Sac' }, { id: 'log', l: 'Journal' }]));
 
     if (sub.profil === 'stats') {
       var t = S.tier(s), nw = S.netWorth(s);
@@ -1598,6 +1569,40 @@
       h.push(hint('La partie est sauvegardée automatiquement après chaque action, dans votre navigateur.'));
     }
 
+    if (sub.profil === 'inv') {
+      var tenue = S.bestOf(s, 'tenue', 'style'), tr = S.bestOf(s, 'transport', 'speed'), te = S.bestOf(s, 'tech', 'tech');
+      h.push(sectionTitle('Équipement porté'));
+      h.push('<div class="panel">' +
+        kv('👔 Tenue', tenue ? tenue.ico + ' ' + tenue.n : '— guenilles') +
+        kv('🚲 Transport', tr ? tr.ico + ' ' + tr.n : '— à pied') +
+        kv('📱 Technologie', te ? te.ico + ' ' + te.n : '— aucune') +
+        kv('✨ Apparence', S.apparence(s) + ' / 100') +
+        (s.flags.groomed > s.day ? kv('💈 Fraîchement coiffé', 'encore ' + (s.flags.groomed - s.day) + ' j', 'v-good') : '') +
+        '</div>');
+      h.push(hint('Le meilleur objet de chaque catégorie est utilisé automatiquement. ' +
+        'Les achats se font désormais dans les <b>commerces</b> de l’onglet 🏙️ Ville.'));
+
+      h.push(sectionTitle('Sac'));
+      var ids = Object.keys(s.inv).filter(function (k) { return s.inv[k] > 0; });
+      if (!ids.length) h.push(empty('🎒', 'Votre sac est vide.'));
+      else h.push('<div class="cards">' + ids.map(function (id) {
+        var it = D.ITEM[id];
+        if (!it) return '';
+        return card({
+          ico: it.ico, title: it.n + ' <span class="tag">×' + s.inv[id] + '</span>',
+          desc: it.use ? 'Utiliser : ' + Object.keys(it.use).map(function (k) {
+            return k === 'xp' ? '+' + it.use.xp[1] + ' XP ' + it.use.xp[0] : (it.use[k] > 0 ? '+' : '') + it.use[k] + ' ' + k;
+          }).join(', ') : it.d,
+          accent: sellMode ? 'var(--gold)' : (it.use ? 'var(--good)' : 'var(--line)'),
+          costs: [cost(sellMode ? '💱 Appuyer pour revendre' : (it.use ? 'Appuyer pour utiliser' : 'Objet durable')),
+          sellMode ? cost('Revente : ' + eur(it.price * (it.cat === 'luxe' ? 0.9 : 0.5)), 'cost--price') : null],
+          act: it.use ? 'use' : 'sell', arg: id
+        });
+      }).join('') + '</div>');
+      if (ids.length) h.push('<div class="btnRow"><button class="btn ' + (sellMode ? 'btn--gold' : 'btn--ghost') +
+        '" data-act="sellmode">💱 ' + (sellMode ? 'Quitter le mode revente' : 'Mode revente') + '</button></div>');
+    }
+
     if (sub.profil === 'log') {
       h.push(sectionTitle('Journal'));
       if (!s.log.length) h.push(empty('📓', 'Rien à raconter pour l’instant.'));
@@ -1616,7 +1621,7 @@
   var RENDER = {
     survie: renderSurvie, travail: renderTravail, milieu: renderMilieu,
     finance: renderFinance, ville: renderVille, social: renderSocial,
-    sac: renderSac, profil: renderProfil
+    profil: renderProfil
   };
 
   UI.refresh = function () {
@@ -2038,6 +2043,30 @@
     UI.modal({ ico: '🏦', title: title, body: '<p>Disponible : <b>' + eur(max) + '</b></p>', actions: acts });
   }
 
+  /** Choix du nom avant de fonder une entreprise dans un secteur donné */
+  function bizNamePrompt(d) {
+    UI.modal({
+      ico: d.ico, title: 'Fonder dans : ' + d.n,
+      body: '<p>' + d.d + '</p>' +
+        '<div class="panel mt">' +
+        kv('Capital requis', eur(d.cost)) +
+        kv('Revenu de départ', '≈ ' + eur(d.rev) + ' / jour' + (d.legal === false ? ' (sale)' : '')) +
+        (d.wash ? kv('Blanchiment offert', eur(d.wash) + ' / jour de capacité') : '') +
+        '</div>' +
+        '<label class="field"><span>Nom de l’entreprise</span>' +
+        '<input type="text" id="bizNameInput" maxlength="28" placeholder="Ex. ' + esc(d.n) + '" autocomplete="off"></label>',
+      actions: [
+        {
+          l: '🚀 Fonder pour ' + eur(d.cost), h: '3 h', fn: function () {
+            var el = document.getElementById('bizNameInput');
+            G.buyBiz(d.id, el ? el.value : '');
+          }
+        },
+        { l: 'Annuler', h: '', fn: null }
+      ]
+    });
+  }
+
   /** Une revente se confirme toujours : c'est irréversible */
   function confirmSell(id) {
     var it = D.ITEM[id];
@@ -2075,15 +2104,17 @@
         ]
       });
     },
-    bizbuy: function (arg) { G.buyBiz(arg); },
+    bizsector: function (arg) { bizNamePrompt(D.BIZI[arg]); },
     bizup: function (arg) { G.upgradeBiz(arg); },
+    bizmanage: function (arg) { G.manageBiz(arg); },
     bizsell: function () {
       var acts = G.s.biz.map(function (b) {
         var d = D.BIZI[b.id];
-        return { l: d.ico + ' ' + d.n, h: 'Céder pour ' + eur(d.cost * b.lvl * 0.7), fn: function () { G.sellBiz(b.id); } };
+        var price = Math.round(d.cost * b.lvl * 0.7 * S.bizHealthFactor(b));
+        return { l: d.ico + ' ' + G.bizName(b), h: 'Céder pour ' + eur(price), fn: function () { G.sellBiz(b.id); } };
       });
       acts.push({ l: 'Annuler', h: '', fn: null });
-      UI.modal({ ico: '💱', title: 'Céder une entreprise', body: '<p>La cession rapporte 70 % du coût cumulé.</p>', actions: acts });
+      UI.modal({ ico: '💱', title: 'Céder une entreprise', body: '<p>La cession rapporte 70 % du coût cumulé, ajusté à la santé de l’activité.</p>', actions: acts });
     },
     buy: function (arg) { G.buyItem(arg, false); },
     buystreet: function (arg) {
@@ -2181,7 +2212,7 @@
       var g = D.GAUGES.filter(function (x) { return x.id === arg; })[0];
       UI.modal({ ico: g.ico, title: g.label, body: '<p>' + g.d + '</p><div class="panel mt">' + kv('Niveau actuel', Math.round(G.s.gauges[arg]) + ' / 100') + '</div>', actions: [{ l: 'Fermer', h: '', fn: null }] });
     },
-    sub: function (arg) { var p = arg.split(':'); sub[p[0]] = p[1]; $('screen').scrollTop = 0; UI.refresh(); },
+    sub: function (arg) { var p = arg.split(':'); sub[p[0]] = p[1]; if (p[0] === 'profil' && p[1] !== 'inv') sellMode = false; $('screen').scrollTop = 0; UI.refresh(); },
     save: function () { NS.S.save(G.s); UI.toast('💾 Partie sauvegardée', 'good'); },
     reset: function () {
       UI.modal({

@@ -364,7 +364,7 @@ em{font-style:normal}
 /* ---------- 12. Barre d'onglets ---------- */
 .tabbar{
   position:absolute;left:0;right:0;bottom:0;z-index:30;
-  display:grid;grid-template-columns:repeat(8,1fr);
+  display:grid;grid-template-columns:repeat(7,1fr);
   padding:5px 3px calc(5px + var(--safe-b));
   background:color-mix(in srgb,var(--surface) 93%,transparent);
   backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
