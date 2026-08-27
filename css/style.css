@@ -31,6 +31,7 @@
   --g-sante:#f4574c;
 
   --tier:#7a8699;
+  --mood:transparent;
   --radius:16px;
   --radius-s:11px;
   --tap:48px;
@@ -71,9 +72,12 @@ em{font-style:normal}
   display:flex;flex-direction:column;position:relative;overflow:hidden;
   background:
     radial-gradient(120% 60% at 50% 0%, color-mix(in srgb,var(--tier) 16%, transparent) 0%, transparent 62%),
+    linear-gradient(180deg, var(--mood,transparent) 0%, transparent 55%),
     var(--bg);
-  transition:background .8s ease;
+  transition:background 1.2s ease;
 }
+/* La voie criminelle garde l'écran dans l'ombre, avec une teinte de sang séché */
+.phone.is-crooked{box-shadow:inset 0 0 120px rgba(120,20,15,.16)}
 .phone.is-night{
   background:
     radial-gradient(130% 62% at 50% 0%, rgba(76,60,150,.30) 0%, transparent 64%),
@@ -143,6 +147,7 @@ em{font-style:normal}
 .chip--heat.hot{background:color-mix(in srgb,var(--danger) 22%,var(--surface-2));border-color:var(--danger);color:#ffd9d6}
 .chip--casier{border-color:#7a4a44;color:#ffbdb7}
 .chip--quest{border-color:var(--gold);color:#ffe0a3}
+.chip--gang{border-color:#8a3a46;color:#ffb9c2;background:color-mix(in srgb,var(--danger) 14%,var(--surface-2))}
 
 /* ---------- 5. Écran ---------- */
 .screen{
@@ -388,6 +393,23 @@ em{font-style:normal}
 .sleepfab.night{background:linear-gradient(135deg,#5b4bb0,#2e2560);border-color:#7565d0;color:#efeaff}
 .sleepfab.urgent{animation:fabPulse 1.5s infinite;background:linear-gradient(135deg,#6e3b3b,#47201d);border-color:#8a4a45;color:#ffdad6}
 @keyframes fabPulse{50%{box-shadow:0 8px 30px rgba(244,87,76,.6)}}
+
+/* ---------- 13bis. Bandeaux de retour ---------- */
+.flashes{
+  position:absolute;left:0;right:0;top:calc(var(--safe-t) + 4px);z-index:55;
+  display:flex;flex-direction:column;gap:6px;padding:0 12px;pointer-events:none;
+}
+.flash{
+  font-size:12.5px;font-weight:700;line-height:1.35;padding:10px 13px;border-radius:12px;
+  background:rgba(14,17,24,.96);border:1px solid var(--line);color:var(--text);
+  box-shadow:var(--shadow);backdrop-filter:blur(8px);
+  animation:flashIn .34s cubic-bezier(.2,1.1,.4,1) both;
+}
+.flash--good{border-color:var(--good);background:color-mix(in srgb,var(--good) 20%,rgba(14,17,24,.96));color:#d6ffe9}
+.flash--bad{border-color:var(--danger);background:color-mix(in srgb,var(--danger) 22%,rgba(14,17,24,.96));color:#ffd6d2}
+.flash.out{animation:flashOut .38s ease forwards}
+@keyframes flashIn{from{opacity:0;transform:translateY(-12px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes flashOut{to{opacity:0;transform:translateY(-8px) scale(.97)}}
 
 /* ---------- 14. Toasts ---------- */
 .toasts{

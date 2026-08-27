@@ -24,7 +24,14 @@
       casier: 0,            // mentions au casier judiciaire
       jail: null,           // { days, reason } pendant une incarcération
       home: 'street',
-      job: null,            // { id, shifts }
+      job: null,            // { id, shifts, pending, absences, weekShifts, weekAnchor, promoDue }
+      hospital: null,       // { days, reason } pendant une hospitalisation
+      rentDue: 0,           // jour de la prochaine échéance de loyer
+      rentLate: 0,          // relances impayées en cours
+      rentGrace: 0,         // délai obtenu à l'amiable
+      stash: 0,             // argent sale planqué au logement
+      washedWeek: 0,        // montant blanchi sur la semaine en cours
+      washWeekAnchor: 1,    // début de la semaine de blanchiment
       edu: 0,
       eduProg: 0,
       filiere: null,        // id de la filière post-bac choisie (définitif)
@@ -33,6 +40,7 @@
       examStreak: {},       // { clé: échecs consécutifs } — booste la chance à chaque échec
       shopHeat: {},         // vigilance accumulée par commerce après un vol
       crimeLast: {},        // dernier jour où chaque coup a été tenté (récidive)
+      gang: null,           // { id, rank, missions, loyalty, since, failed }
       biz: [],              // [{ id, lvl }]
       bank: {
         open: false, checking: 0, savings: 0, score: 20,
@@ -58,6 +66,7 @@
       flags: {},
       log: [],
       seen: {},             // événements uniques déjà vus
+      procSeen: {},         // dernier jour d'apparition de chaque gabarit procédural
       pending: [],          // [{ id, day }] événements différés
       hist: {},             // compteurs de comportement
       milestones: {},
@@ -117,7 +126,10 @@
     if (!st.quests) st.quests = [];
     if (!st.npcMet) st.npcMet = {};
     if (!st.shopHeat) st.shopHeat = {};
+    if (!st.procSeen) st.procSeen = {};
     if (!st.crimeLast) st.crimeLast = {};
+    if (typeof st.rentDue !== 'number') st.rentDue = 0;
+    if (typeof st.stash !== 'number') st.stash = 0;
     return st;
   };
 
@@ -148,10 +160,34 @@
     return 0;
   };
 
+  /** Montant d'une échéance de loyer (pour la période du logement) */
   S.rent = function (st) {
     var r = S.home(st).rent;
     if (st.flags.rentCut) r = Math.round(r * 0.7);
-    return r;
+    return Math.round(r);
+  };
+
+  /** Périodicité du loyer courant */
+  S.rentPer = function (st) { return S.home(st).rentPer || 'day'; };
+
+  /** Loyer ramené au jour, pour comparer des logements entre eux */
+  S.rentPerDay = function (st) {
+    var per = D.PERIODS_PAY[S.rentPer(st)] || D.PERIODS_PAY.day;
+    return S.rent(st) / per.days;
+  };
+
+  /** Argent sale total : sur soi + planqué au logement */
+  S.dirtyTotal = function (st) { return st.dirty + (st.stash || 0); };
+
+  /** Capacité de planque, selon la sûreté du logement */
+  S.stashCap = function (st) {
+    var h = S.home(st);
+    return (h.safe || 0) * 2500;
+  };
+
+  /** Plafond hebdomadaire de blanchiment */
+  S.washWeekCap = function (st) {
+    return 4000 + st.rep.pegre * 250 + S.washCap(st) * 0.5;
   };
 
   S.bestOf = function (st, cat, key) {
@@ -225,10 +261,32 @@
   /** Patrimoine net — l'argent sale ne compte qu'à moitié (invendable au grand jour) */
   S.netWorth = function (st) {
     return Math.round(
-      st.money + st.dirty * 0.5 +
+      st.money + (st.dirty + (st.stash || 0)) * 0.5 +
       (st.bank ? st.bank.checking + st.bank.savings : 0) +
       S.portfolio(st) + S.invValue(st) + S.bizValue(st) - S.debtTotal(st)
     );
+  };
+
+  /**
+   * Voie suivie, de −1 (criminelle) à +1 (légale).
+   * Sert à éclaircir progressivement l'interface : on commence dans le noir,
+   * et le monde s'ouvre — ou ne s'ouvre pas.
+   */
+  S.path = function (st) {
+    var crimes = (st.hist && st.hist.crime) || 0;
+    var honest = ((st.hist && st.hist.helped) || 0) + ((st.hist && st.hist.honest) || 0);
+    var legal = st.rep.legale + honest * 3 + (st.job ? 25 : 0) + st.edu * 8 +
+      (st.filiereLvl || 0) * 10 + (st.bank.open ? 10 : 0);
+    var dark = st.rep.pegre * 1.2 + crimes * 2.5 + st.casier * 12 + st.heat * 0.4;
+    var v = (legal - dark) / 120;
+    return Math.max(-1, Math.min(1, v));
+  };
+
+  /** Aisance matérielle 0→1 : la misère assombrit aussi l'écran */
+  S.comfort = function (st) {
+    var nw = S.netWorth(st);
+    if (nw <= 0) return 0;
+    return Math.max(0, Math.min(1, Math.log10(nw + 1) / 6));
   };
 
   S.tier = function (st) {

@@ -87,6 +87,14 @@
 
   G.dirtyCash = function (n, label) {
     if (!n) return;
+    /* Le gang prélève sa part sur ce que vous ramenez — sauf sur ses propres missions */
+    if (n > 0 && this.gangCut && !this._noCut) {
+      var cut = this.gangCut(n);
+      if (cut > 0) {
+        n -= cut;
+        if (!this._q) NS.UI.toast('🕶️ −' + this.eur(cut) + ' · part du gang', 'dirty');
+      }
+    }
     this.s.dirty = Math.max(0, this.s.dirty + n);
     if (n > 0) this.s.totals.earned += n;
     if (!this._q) NS.UI.toast((n > 0 ? '+' : '') + this.eur(n) + ' sale' + (label ? ' · ' + label : ''), 'dirty');
@@ -324,6 +332,7 @@
   G.canDo = function (a) {
     if (this.s.over) return 'Partie terminée';
     if (this.s.jail) return 'Vous êtes incarcéré';
+    if (this.s.hospital) return 'Vous êtes hospitalisé';
     var w = this.whenLock(a);
     if (w) return w;
     var r = this.checkReq(a.req);
@@ -394,6 +403,7 @@
 
     if (s.flags.lookout) p += 6;
     if (s.flags.blessed) p += 7;
+    if (this.gangCrimeBonus) p += this.gangCrimeBonus(this._crime);
     if (s.flags.addict) p -= 4 * s.flags.addict;
     p += (s.gauges.moral - 50) * 0.08;
     p -= s.heat * 0.32;
@@ -509,17 +519,25 @@
     this.rep('rue', 3);
     this.rep('pegre', sentence >= 30 ? 4 : 1);
 
+    /* Échelle des suites judiciaires : tout ne finit pas en cellule. */
     if (days < 2) {
-      var fine = Math.min(s.money, 40 + Math.round(s.heat));
-      if (fine) this.cash(-fine, 'Amende');
-      s.hour = D.DAY_END;
-      this.add('moral', -22);
-      this.heat(-25);
-      this.log('<b>Garde à vue.</b> Vous perdez la journée' + (fine ? ' et ' + this.eur(fine) + ' d’amende' : '') + '.', 'bad');
-      NS.UI.toast('🚔 Garde à vue', 'bad');
+      this.fine(60 + Math.round(s.heat * 2.2), reason);
+      this.add('moral', -10);
+      this.heat(-18);
       return true;
     }
-
+    if (days < 6) {
+      /* garde à vue : on perd la journée, pas des mois */
+      s.hour = D.DAY_END;
+      this.add('moral', -20);
+      this.heat(-25);
+      this.fine(90 + Math.round(s.heat * 3), reason);
+      this.log('<b>Garde à vue.</b> Vingt-quatre heures, puis convocation ultérieure.', 'bad');
+      if (!this._q) NS.UI.flash('🚔 Garde à vue', 'bad');
+      return true;
+    }
+    /* au-delà, c'est le tribunal qui décide — et le joueur avec */
+    if (this.trial) { this.trial(reason, days); return true; }
     this.jail(days, reason);
     return true;
   };
@@ -548,46 +566,90 @@
     var s = this.s;
     if (!s.jail) return;
     var days = s.jail.days, reason = s.jail.reason;
-    var earned = 0, lostHome = false;
 
-    for (var i = 0; i < days; i++) {
-      s.day++;
-      s.totals.jailDays++;
-      s.heat = clamp(s.heat - 9, 0, 100);
-      s.gauges.moral = clamp(s.gauges.moral - 1.1, 0, 100);
-      s.gauges.sante = clamp(s.gauges.sante - 0.5, 0, 100);
-      s.rep.rue = clamp(s.rep.rue + 0.35, 0, 100);
-      s.rep.pegre = clamp(s.rep.pegre + 0.5, 0, 100);
-      s.rep.legale = clamp(s.rep.legale - 0.25, 0, 100);
-      if (i % 4 === 0) { s.stats.force.xp += 12; s.stats.discretion.xp += 6; }
-
-      /* les entreprises tournent au ralenti, sans vous */
-      var inc = Math.round(S.bizIncome(s) * 0.45);
-      if (inc) { earned += inc; if (s.bank.open) s.bank.checking += inc; else s.money += inc; }
-
-      /* loyer : payé depuis la banque, sinon expulsion */
-      var rent = S.rent(s);
-      if (rent) {
-        if (s.bank.open && s.bank.checking >= rent) s.bank.checking -= rent;
-        else if (s.money >= rent) s.money -= rent;
-        else if (!lostHome) { s.home = 'street'; lostHome = true; }
+    var out = this.skipDays({
+      days: days,
+      onDay: function (i) {
+        var st = this.s;
+        st.totals.jailDays++;
+        st.heat = clamp(st.heat - 9, 0, 100);
+        st.gauges.moral = clamp(st.gauges.moral - 1.1, 0, 100);
+        st.gauges.sante = clamp(st.gauges.sante - 0.5, 0, 100);
+        st.rep.rue = clamp(st.rep.rue + 0.35, 0, 100);
+        st.rep.pegre = clamp(st.rep.pegre + 0.5, 0, 100);
+        st.rep.legale = clamp(st.rep.legale - 0.25, 0, 100);
+        /* la salle de musculation de la détention entretient le corps */
+        if (i % 3 === 0) { st.stats.force.xp += 26; st.stats.discretion.xp += 14; }
       }
-      NS.FIN.dailyTick(this, true);
-      if (s.gauges.sante <= 0) break;
-    }
+    });
 
-    S.syncLevels(s);
     s.jail = null;
-    s.hour = D.DAY_START;
     s.gauges.energie = 70;
     s.gauges.faim = 45;
     s.gauges.hygiene = 40;
-    s.flags.nightPrompted = false;
 
     this.log('— SORTIE DE DÉTENTION —', 'day');
-    this.log('<b>' + days + ' jours purgés</b> pour ' + reason + '. Vous ressortez avec un casier plus lourd et une réputation différente.', 'event');
-    if (lostHome) this.log('Votre logement a été repris pendant votre absence. Retour au trottoir.', 'bad');
-    if (earned) this.log('Vos affaires ont continué sans vous : ' + this.eur(earned) + ' encaissés.', 'money');
+    this.log('<b>' + out.served + ' jours purgés</b> pour ' + reason +
+      '. Vous ressortez avec un casier plus lourd et une réputation différente.', 'event');
+    out.lines.filter(Boolean).forEach(function (l) { this.log(l, 'event'); }, this);
+
+    this.checkEnd();
+    if (!this._q) { NS.UI.refresh(); S.save(s); }
+  };
+
+  /* --------- hôpital --------- */
+  /**
+   * Blessure grave : on ne meurt pas toujours, on passe du temps au lit.
+   * @param severity 1 (contusions) à 3 (réanimation)
+   */
+  G.hospitalize = function (severity, reason) {
+    var s = this.s;
+    if (this._q || s.over) return;
+    severity = clamp(severity || 1, 1, 3);
+    var days = [0, this.rnd(2, 4), this.rnd(5, 9), this.rnd(10, 18)][severity];
+    if (s.flags.lawyer) days = days;   // l'avocate ne soigne pas
+    s.hospital = { days: days, reason: reason || 'blessures graves', severity: severity };
+    if (s.job) s.job.pending = s.job.pending || 0;
+    NS.UI.hospitalScreen(days, s.hospital.reason, severity);
+  };
+
+  G.serveHospital = function () {
+    var s = this.s;
+    if (!s.hospital) return;
+    var days = s.hospital.days, reason = s.hospital.reason, sev = s.hospital.severity;
+
+    var out = this.skipDays({
+      days: days,
+      onDay: function () {
+        var st = this.s;
+        st.totals.hospitalDays = (st.totals.hospitalDays || 0) + 1;
+        st.gauges.sante = clamp(st.gauges.sante + 9, 0, 100);
+        st.gauges.moral = clamp(st.gauges.moral - 0.8, 0, 100);
+        st.heat = clamp(st.heat - 3, 0, 100);
+      }
+    });
+
+    /* la facture arrive à la sortie */
+    var bill = Math.round(days * (60 + sev * 45));
+    if (s.bank.open || s.money > 0) {
+      if (!this.spend(bill, 'Frais hospitaliers')) {
+        var paid = Math.min(bill, S.spendable(s));
+        this.spend(paid, 'Frais hospitaliers');
+        s.flags.medDebt = (s.flags.medDebt || 0) + (bill - paid);
+      }
+    } else {
+      s.flags.medDebt = (s.flags.medDebt || 0) + bill;
+    }
+
+    s.hospital = null;
+    s.gauges.energie = 65;
+    s.gauges.faim = 50;
+    s.gauges.hygiene = 70;
+
+    this.log('— SORTIE D’HÔPITAL —', 'day');
+    this.log('<b>' + out.served + ' jours d’hospitalisation</b> pour ' + reason +
+      '. Facture : ' + this.eur(bill) + (s.flags.medDebt ? ' (partiellement impayée)' : '') + '.', 'event');
+    out.lines.filter(Boolean).forEach(function (l) { this.log(l, 'event'); }, this);
 
     this.checkEnd();
     if (!this._q) { NS.UI.refresh(); S.save(s); }
@@ -658,7 +720,14 @@
   };
 
   G.hire = function (id, silent) {
-    this.s.job = { id: id, shifts: 0 };
+    var jd = D.JOB[id];
+    var jper = D.PERIODS_PAY[(jd && jd.payPer) || 'week'];
+    this.s.job = {
+      id: id, shifts: 0, pending: 0, grade: 0,
+      weekShifts: 0, weekAnchor: this.s.day, absences: 0,
+      promoFails: 0, lastShiftDay: 0,
+      payDue: this.s.day + jper.days
+    };
     this.rep('legale', 5);
     if (!silent) this.toast('🎉 Embauché·e : ' + D.JOB[id].n, 'good');
     this.milestone('firstJob', '💼 Premier emploi déclaré',
@@ -673,40 +742,97 @@
     NS.UI.refresh(); S.save(this.s);
   };
 
-  G.doShift = function () {
-    if (!this.s.job) return;
-    var j = D.JOB[this.s.job.id];
-    var hours = this.gigHours(j);
-    if (this.canDo({ hours: hours, energy: j.energy, when: j.when })) return;
-    if (this.s.gauges.hygiene < 30) { NS.UI.toast('Trop sale pour vous présenter', 'bad'); return; }
-    if (j.payBank && !this.s.bank.open) { NS.UI.toast('Ce poste paie par virement : ouvrez un compte', 'bad'); return; }
+  /** Le poste est-il ouvert aujourd'hui ? */
+  G.jobWorksToday = function (j) {
+    if (!j || !j.days) return true;
+    return j.days.indexOf(D.cal(this.s.day).dow) !== -1;
+  };
 
+  /** Quarts restants à faire cette semaine pour tenir le quota */
+  G.shiftsLeft = function () {
+    var s = this.s;
+    if (!s.job) return 0;
+    var j = D.JOB[s.job.id];
+    return Math.max(0, (j.quota || 4) - (s.job.weekShifts || 0));
+  };
+
+  G.shiftLock = function () {
+    var s = this.s;
+    if (!s.job) return 'Aucun emploi';
+    var j = D.JOB[s.job.id];
+    var hours = this.gigHours(j);
+    var base = this.canDo({ hours: hours, energy: j.energy, when: j.when });
+    if (base) return base;
+    if (!this.jobWorksToday(j)) {
+      return 'Repos aujourd’hui — service ' + j.days.map(function (d) { return D.WEEKDAYS_SHORT[d]; }).join(', ');
+    }
+    if (s.job.lastShiftDay === s.day) return 'Vous avez déjà pris votre service aujourd’hui';
+    if (s.gauges.hygiene < 30) return 'Trop sale pour vous présenter';
+    if (j.payBank && !s.bank.open) return 'Ce poste paie par virement : ouvrez un compte';
+    return null;
+  };
+
+  G.doShift = function () {
+    var s = this.s;
+    if (!s.job) return;
+    var j = D.JOB[s.job.id];
+    var lock = this.shiftLock();
+    if (lock) { NS.UI.toast(lock, 'bad'); return; }
+
+    var hours = this.gigHours(j);
     this.spendTime(hours);
     this.spendEnergy(j.energy);
-    this.s.job.shifts++;
+    s.job.shifts++;
+    s.job.weekShifts = (s.job.weekShifts || 0) + 1;
+    s.job.lastShiftDay = s.day;
 
-    var seniority = 1 + Math.floor(this.s.job.shifts / 10) * 0.08;
+    var seniority = 1 + Math.floor((s.job.grade || 0)) * 0.12;
     var pay = Math.round(j.pay * seniority * this.condition());
     var bonus = j.bonus ? Math.round(j.bonus(this) * this.condition()) : 0;
 
-    if (j.payBank) this.bankIn(pay + bonus, j.n); else this.cash(pay + bonus, j.n);
+    /* la paie s'accumule jusqu'à l'échéance du contrat */
+    s.job.pending = Math.round((s.job.pending || 0) + pay + bonus);
+
     Object.keys(j.xp).forEach(function (k) { this.xp(k, j.xp[k]); }, this);
     this.rep('legale', j.repLeg);
     this.add('moral', j.moral !== undefined ? j.moral : -3);
     this.add('hygiene', -6);
     this.hist('shift');
 
-    var msg = '<b>' + j.n + '</b> — ' + hours + ' h. Salaire <b>' + this.eur(pay) + '</b>';
-    msg += bonus > 0 ? ' + ' + this.eur(bonus) + ' de variable' : (bonus < 0 ? ' ' + this.eur(bonus) + ' de malus' : '');
-    msg += j.payBank ? ', viré sur votre compte.' : ', payé en espèces.';
+    var per = D.PERIODS_PAY[j.payPer || 'week'];
+    var msg = '<b>' + j.n + '</b> — ' + hours + ' h. ' + this.eur(pay + bonus) + ' acquis';
+    msg += ', versés ' + per.n + ' (cumul : ' + this.eur(s.job.pending) + ').';
     this.log(msg, 'money');
 
-    if (this.s.job.shifts % 10 === 0) {
-      this.log('<b>Ancienneté reconnue.</b> Votre rémunération augmente de 8 %.', 'good');
-      this.toast('📈 Augmentation !', 'good');
-    }
-    this.s.totals.actions++;
+    /* promotion : le quota atteint ouvre un entretien, le charisme le conclut */
+    if (s.job.shifts > 0 && s.job.shifts % 10 === 0) this.tryPromotion(j);
+
+    s.totals.actions++;
     this.afterAction(j);
+  };
+
+  /** Entretien de promotion — réussi au charisme, sinon reporté */
+  G.tryPromotion = function (j) {
+    var s = this.s;
+    var p = 30 + this.lvl('charisme') * 6 + s.rep.legale * 0.2
+      - (s.job.absences || 0) * 6 - s.casier * 4 + (s.job.promoFails || 0) * 8;
+    p = clamp(p * this.condition(), 5, 93);
+
+    if (this.chance(p)) {
+      s.job.grade = (s.job.grade || 0) + 1;
+      s.job.promoFails = 0;
+      this.rep('legale', 3);
+      this.add('moral', 12);
+      this.log('<b>Promotion obtenue.</b> Vous passez au grade ' + s.job.grade +
+        ' : +12 % de rémunération.', 'good');
+      if (!this._q) NS.UI.flash('📈 Promotion — grade ' + s.job.grade, 'good');
+    } else {
+      s.job.promoFails = (s.job.promoFails || 0) + 1;
+      this.add('moral', -8);
+      this.log('<b>Entretien de promotion manqué.</b> « On en reparle au prochain point. » ' +
+        'Chaque échec rend le suivant plus facile.', 'bad');
+      if (!this._q) NS.UI.flash('❌ Promotion reportée', 'bad');
+    }
   };
 
   /* =========================================================
@@ -1036,6 +1162,17 @@
     if (dep) this.spend(dep, 'Caution');
     var was = this.s.home;
     this.s.home = id;
+    var hper = D.PERIODS_PAY[h.rentPer || 'day'];
+    this.s.rentDue = h.rent ? this.s.day + hper.days : 0;
+    this.s.rentLate = 0;
+    this.s.rentGrace = 0;
+    /* la planque ne suit pas : ce qui dépasse la capacité du nouveau lieu se perd */
+    var cap = S.stashCap(this.s);
+    if ((this.s.stash || 0) > cap) {
+      var lost = this.s.stash - cap;
+      this.s.stash = cap;
+      this.log('Le déménagement vous fait perdre ' + this.eur(lost) + ' d’argent planqué.', 'bad');
+    }
     this.log('Vous emménagez : ' + h.ico + ' <b>' + h.name + '</b>.', 'good');
     if (was === 'street' && id !== 'street') {
       this.milestone('firstRoof', '🔑 Un toit',
@@ -1201,46 +1338,12 @@
      ========================================================= */
   G.sleep = function () {
     var s = this.s;
-    if (s.over || s.jail) return;
+    if (s.over || s.jail || s.hospital) return;
     var h = S.home(s);
     var lines = [];
 
     s.totals.nights++;
     var nightHours = S.nightHours(s);
-
-    /* --- loyer --- */
-    var rent = S.rent(s);
-    if (s.flags.freeShelter > 0 && h.id === 'shelter') {
-      s.flags.freeShelter--; rent = 0;
-      lines.push('Place gratuite au foyer (' + s.flags.freeShelter + ' nuit(s) restante(s)).');
-    }
-    if (rent > 0) {
-      if (s.money >= rent) { this.cash(-rent, 'Loyer'); lines.push('Loyer réglé : ' + this.eur(rent) + '.'); }
-      else if (s.bank.open && s.bank.checking >= rent) { s.bank.checking -= rent; lines.push('Loyer prélevé sur le compte : ' + this.eur(rent) + '.'); }
-      else {
-        s.home = 'street'; this.add('moral', -20);
-        lines.push('<b>Expulsion.</b> Impossible de payer ' + this.eur(rent) + '. Retour au trottoir.');
-        h = S.home(s);
-      }
-    }
-
-    /* --- revenus --- */
-    var inc = S.bizIncome(s);
-    if (inc > 0) { this.cash(inc, 'Entreprises'); lines.push('Vos entreprises rapportent ' + this.eur(inc) + '.'); }
-    var dinc = S.bizDirtyIncome(s);
-    if (dinc > 0) {
-      this.dirtyCash(dinc, 'Réseau');
-      var extraHeat = 0;
-      s.biz.forEach(function (b) { var d = D.BIZI[b.id]; if (d && d.heat) extraHeat += d.heat; });
-      this.heat(extraHeat);
-      lines.push('Votre réseau rapporte ' + this.eur(dinc) + ' d’argent sale. Pression policière +' + extraHeat + '.');
-    }
-
-    /* --- banque, crédits, marché --- */
-    NS.FIN.dailyTick(this, false, lines);
-
-    /* --- dettes de rue --- */
-    this.tickStreetDebts(lines);
 
     /* --- qualité du sommeil --- */
     var q = h.sleep;
@@ -1278,17 +1381,11 @@
     }
 
     /* --- passage au jour suivant --- */
-    s.day++;
     s.hour = D.DAY_START;
     s.flags.nightPrompted = false;
-    var cool = 7 + (h.cool || 0) + (s.flags.ghost ? 5 : 0);
-    s.heat = clamp(s.heat - cool, 0, 100);
+    this.dayTick(lines, false);
 
-    this.tickShops();
-    this.decayRelations();
-    this.resolveQuests();
-
-    this.log('— JOUR ' + s.day + ' —', 'day');
+    this.log('— ' + D.dateLabel(s.day).toUpperCase() + ' · JOUR ' + s.day + ' —', 'day');
     lines.filter(Boolean).reverse().forEach(function (l) { this.log(l, 'event'); }, this);
 
     NS.EV.firePending();
@@ -1363,6 +1460,228 @@
   };
 
   /* =========================================================
+     15bis. LE JOUR QUI PASSE
+     Un seul chemin pour toutes les fins de journée : nuit normale,
+     jour de prison, jour d'hôpital. `away` signale que le joueur
+     n'était pas là pour s'en occuper.
+     ========================================================= */
+
+  /** Échéance de loyer : ne tombe qu'aux dates prévues par le bail */
+  G.tickRent = function (lines, away) {
+    var s = this.s;
+    var h = S.home(s);
+    var rent = S.rent(s);
+
+    if (!rent) { s.rentLate = 0; return; }
+    if (s.flags.freeShelter > 0 && h.id === 'shelter') {
+      s.flags.freeShelter--;
+      if (s.rentDue <= s.day) s.rentDue = s.day + 1;
+      lines.push('Place gratuite au foyer (' + s.flags.freeShelter + ' nuit(s) restante(s)).');
+      return;
+    }
+    if (s.day < s.rentDue) return;
+
+    var per = D.PERIODS_PAY[S.rentPer(s)] || D.PERIODS_PAY.day;
+    var label = 'Loyer ' + per.n;
+
+    if (this.spend(rent, label)) {
+      s.rentDue = s.day + per.days;
+      s.rentLate = 0;
+      lines.push('Loyer réglé : ' + this.eur(rent) + ' (' + per.n + ').');
+      this.rep('legale', 0.4);
+      if (s.bank.open) this.bankScore(0.3);
+      return;
+    }
+
+    /* impayé */
+    s.rentLate++;
+    this.bankScore(-3);
+    if (away || s.rentLate >= 3) {
+      s.home = 'street';
+      s.rentDue = 0; s.rentLate = 0;
+      this.add('moral', -20);
+      this.rep('legale', -4);
+      lines.push('<b>Expulsion.</b> Le loyer de ' + this.eur(rent) + ' n’a pas été réglé. Retour au trottoir.');
+      if (!this._q) NS.UI.flash('🏚️ Expulsé de votre logement', 'bad');
+    } else {
+      s.rentDue = s.day + 2;
+      this.add('moral', -8);
+      lines.push('<b>Loyer impayé</b> (relance ' + s.rentLate + '/3). ' +
+        'Encore deux relances avant l’expulsion — vous pouvez tenter de négocier un délai.');
+      if (!this._q) NS.UI.flash('⚠️ Loyer impayé — relance ' + s.rentLate + '/3', 'bad');
+    }
+  };
+
+  /** Négocier un délai auprès du bailleur (charisme) */
+  G.negotiateRent = function () {
+    var s = this.s;
+    if (!s.rentLate) { NS.UI.toast('Vous n’avez aucun impayé', 'bad'); return; }
+    if (s.rentGrace > s.day) { NS.UI.toast('Vous avez déjà obtenu un délai', 'bad'); return; }
+    if (S.hoursLeft(s) < 1) { NS.UI.toast('Plus de temps aujourd’hui', 'bad'); return; }
+
+    this.spendTime(1); this.spendEnergy(5);
+    var p = 28 + this.lvl('charisme') * 6 + s.rep.legale * 0.2 + this.affVal('paulette') * 0.2 - s.rentLate * 8;
+    p = clamp(p * this.condition(), 5, 92);
+
+    if (this.chance(p)) {
+      var extra = 3 + Math.round(this.lvl('charisme') / 2);
+      s.rentDue = s.day + extra;
+      s.rentGrace = s.day + extra;
+      s.rentLate = Math.max(0, s.rentLate - 1);
+      this.xp('charisme', 10);
+      this.log('<b>Délai obtenu.</b> Le bailleur accepte d’attendre ' + extra + ' jours de plus.', 'good');
+      if (!this._q) NS.UI.flash('🤝 Délai de ' + extra + ' jours accordé', 'good');
+    } else {
+      this.add('moral', -6);
+      this.log('Le bailleur refuse tout délai. « Vous payez, ou vous partez. »', 'bad');
+      if (!this._q) NS.UI.flash('❌ Délai refusé', 'bad');
+    }
+    this.afterAction({ hours: 1, energy: 5 });
+  };
+
+  /** Paie : accumulée quart après quart, versée à l'échéance du contrat */
+  G.tickSalary = function (lines, away) {
+    var s = this.s;
+    if (!s.job) return;
+    var j = D.JOB[s.job.id];
+    if (!j) return;
+    var per = D.PERIODS_PAY[j.payPer || 'week'];
+    var cal = D.cal(s.day);
+
+    /* fin de semaine de travail : contrôle du quota */
+    if (cal.dow === 0 && s.day > (s.job.weekAnchor || 0)) {
+      var done = s.job.weekShifts || 0;
+      var quota = j.quota || 4;
+      if (done < quota) {
+        var missed = quota - done;
+        s.job.absences = (s.job.absences || 0) + missed;
+        this.rep('legale', -missed);
+        lines.push('<b>Absences relevées</b> : ' + missed + ' quart(s) manquant(s) la semaine passée (' +
+          s.job.absences + ' au total).');
+        if (!this._q) NS.UI.flash('⚠️ ' + missed + ' quart(s) manqué(s)', 'bad');
+        if (s.job.absences >= 6) {
+          lines.push('<b>Licenciement.</b> Trop d’absences : ' + j.n + ', c’est terminé.');
+          if (!this._q) NS.UI.flash('💼 Licencié : ' + j.n, 'bad');
+          this.rep('legale', -6);
+          s.job = null;
+          return;
+        }
+      } else if (s.job.absences) {
+        s.job.absences = Math.max(0, s.job.absences - 1);   // la régularité efface les fautes
+      }
+      s.job.weekShifts = 0;
+      s.job.weekAnchor = s.day;
+    }
+
+    /* versement du salaire accumulé */
+    if (!s.job.payDue) s.job.payDue = s.day + per.days;
+    if (s.day >= s.job.payDue) {
+      var amount = Math.round(s.job.pending || 0);
+      s.job.pending = 0;
+      s.job.payDue = s.day + per.days;
+      if (amount > 0) {
+        if (j.payBank) this.bankIn(amount, 'Salaire — ' + j.n);
+        else this.cash(amount, 'Salaire — ' + j.n);
+        lines.push('<b>Salaire versé</b> : ' + this.eur(amount) + ' (' + per.n + ', ' +
+          (j.payBank ? 'virement' : 'espèces') + ').');
+        if (!this._q) NS.UI.flash('💰 Salaire : ' + this.eur(amount), 'good');
+        if (s.bank.open) this.bankScore(1.2);
+      } else if (!away) {
+        lines.push('Aucun salaire ce mois-ci : vous n’avez pris aucun service.');
+      }
+    }
+  };
+
+  /** Les compétences s'émoussent quand on ne s'en sert pas */
+  G.tickXpDecay = function () {
+    var s = this.s;
+    D.STAT_IDS.forEach(function (k) {
+      var st = s.stats[k];
+      var loss = 2 + st.lvl * 1.4;              // plus on est haut, plus l'entretien coûte
+      st.xp -= loss;
+      while (st.xp < 0 && st.lvl > 1) {
+        st.lvl--;
+        st.xp += D.xpNeeded(st.lvl);
+      }
+      if (st.xp < 0) st.xp = 0;
+    });
+  };
+
+  /** Revenus des entreprises (au ralenti si vous n'êtes pas là) */
+  G.tickBiz = function (lines, away) {
+    var s = this.s;
+    var factor = away ? 0.45 : 1;
+    var inc = Math.round(S.bizIncome(s) * factor);
+    if (inc > 0) {
+      if (s.bank.open) { s.bank.checking += inc; s.totals.earned += inc; }
+      else this.cash(inc, 'Entreprises');
+      if (!away) lines.push('Vos entreprises rapportent ' + this.eur(inc) + '.');
+    }
+    var dinc = Math.round(S.bizDirtyIncome(s) * factor);
+    if (dinc > 0) {
+      this.dirtyCash(dinc, 'Réseau');
+      var extraHeat = 0;
+      s.biz.forEach(function (b) { var d = D.BIZI[b.id]; if (d && d.heat) extraHeat += d.heat; });
+      this.heat(extraHeat);
+      if (!away) lines.push('Votre réseau rapporte ' + this.eur(dinc) + ' d’argent sale. Pression policière +' + extraHeat + '.');
+    }
+    return inc;
+  };
+
+  /**
+   * Tout ce qui arrive au passage d'une journée, où que vous soyez.
+   * @param lines tableau de messages du réveil
+   * @param away  true en prison ou à l'hôpital
+   */
+  G.dayTick = function (lines, away) {
+    var s = this.s;
+    s.day++;
+
+    /* remise à zéro hebdomadaire du plafond de blanchiment */
+    if (s.day - (s.washWeekAnchor || 1) >= 7) { s.washedWeek = 0; s.washWeekAnchor = s.day; }
+
+    this.tickRent(lines, away);
+    this.tickSalary(lines, away);
+    if (!away && this.raidRisk && this.chance(this.raidRisk())) this.raid(lines);
+    if (!away && this.tickBail) this.tickBail(lines);
+    this.tickBiz(lines, away);
+    NS.FIN.dailyTick(this, away, lines);
+    this.tickStreetDebts(lines);
+    this.tickXpDecay();
+    this.tickShops();
+    if (this.tickGang) this.tickGang(lines);
+    this.decayRelations();
+    this.resolveQuests();
+
+    var h = S.home(s);
+    var cool = 7 + (h.cool || 0) + (s.flags.ghost ? 5 : 0);
+    s.heat = clamp(s.heat - cool, 0, 100);
+    S.syncLevels(s);
+  };
+
+  /**
+   * Avance de plusieurs jours d'affilée : prison, hôpital.
+   * @param opts { days, reason, kind:'jail'|'hospital', onDay(i) }
+   */
+  G.skipDays = function (opts) {
+    var s = this.s;
+    var lines = [];
+    var served = 0;
+
+    for (var i = 0; i < opts.days; i++) {
+      if (opts.onDay) opts.onDay.call(this, i);
+      this.dayTick(lines, true);
+      served++;
+      if (s.gauges.sante <= 0) break;
+    }
+
+    s.hour = D.DAY_START;
+    s.flags.nightPrompted = false;
+    S.syncLevels(s);
+    return { served: served, lines: lines };
+  };
+
+  /* =========================================================
      16. Jalons & fins
      ========================================================= */
   G.milestone = function (id, title, text) {
@@ -1390,6 +1709,13 @@
     var s = this.s;
     if (this._q || s.over) return;
 
+    if (s.gauges.sante <= 0 && !s.hospital && !s.jail &&
+        (s.totals.hospitalDays || 0) < 90 && s.gauges.faim > 5) {
+      /* on vous ramasse avant qu'il ne soit trop tard : l'hôpital, pas la morgue */
+      s.gauges.sante = 1;
+      this.hospitalize(3, 'effondrement physique');
+      return;
+    }
     if (s.gauges.sante <= 0) {
       this.over('death', '🕯️', 'Fin de parcours',
         'Le ' + s.day + 'e jour, votre corps a cessé de suivre. On vous retrouve au petit matin. ' +

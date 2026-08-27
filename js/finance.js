@@ -145,7 +145,11 @@
     if (m.hours > S.hoursLeft(this.s)) { NS.UI.toast('Pas assez de temps', 'bad'); return; }
 
     var cap = this.launderCap(m);
-    amount = Math.min(amount, this.s.dirty, cap);
+    var weekLeft = Math.max(0, S.washWeekCap(this.s) - (this.s.washedWeek || 0));
+    amount = Math.min(amount, this.s.dirty, cap, weekLeft);
+    if (weekLeft < 50) {
+      NS.UI.toast('Plafond hebdomadaire atteint — planquez le reste chez vous', 'bad'); return;
+    }
     if (amount < 50) { NS.UI.toast('Montant trop faible', 'bad'); return; }
 
     this.spendTime(m.hours);
@@ -159,6 +163,7 @@
       NS.UI.toast('💸 Opération perdue', 'bad');
     } else {
       var net = this.launderRaw(amount, m.fee);
+      this.s.washedWeek = (this.s.washedWeek || 0) + amount;
       this.hist('launder');
       this.log('<b>' + m.n + '</b> — ' + this.eur(amount) + ' blanchis, ' + this.eur(net) + ' récupérés (frais ' +
         Math.round(m.fee * 100) + ' %).', 'money');

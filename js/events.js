@@ -1023,23 +1023,38 @@
   /* ---------------------------------------------------------
      Déclencheurs
      --------------------------------------------------------- */
+  /* Part des situations composées à la volée plutôt que puisées
+     dans la liste écrite à la main. La fréquence globale ne bouge pas :
+     c'est la variété qui change. */
+  var PROC_SHARE = 62;
+
+  /** Tire un événement : procédural en priorité, écrit à la main sinon */
+  function draw(G, when) {
+    if (NS.PROC && G.chance(PROC_SHARE)) {
+      var gen = NS.PROC.generate(G, when);
+      if (gen) return gen;
+    }
+    var pool = eligible(G, when);
+    if (pool.length) return weightedPick(pool);
+    /* la liste est épuisée pour ce contexte : on retente le générateur */
+    return NS.PROC ? NS.PROC.generate(G, when) : null;
+  }
+
   EV.maybeTrigger = function () {
     var G = NS.G;
-    if (G.s.over || G.s.jail || G._q) return;
+    if (G.s.over || G.s.jail || G.s.hospital || G._q) return;
     var chance = ACTION_CHANCE + (G.s.heat > 50 ? 4 : 0);
     if (!G.chance(chance)) return;
-    var pool = eligible(G, G.isNight() ? 'night' : 'day');
-    if (!pool.length) return;
-    EV.fire(weightedPick(pool));
+    var e = draw(G, G.isNight() ? 'night' : 'day');
+    if (e) EV.fire(e);
   };
 
   EV.nightEvent = function () {
     var G = NS.G;
-    if (G.s.over || G.s.jail || G._q) return;
+    if (G.s.over || G.s.jail || G.s.hospital || G._q) return;
     if (!G.chance(NIGHT_CHANCE)) return;
-    var pool = eligible(G, 'night');
-    if (!pool.length) return;
-    EV.fire(weightedPick(pool));
+    var e = draw(G, 'night');
+    if (e) EV.fire(e);
   };
 
   /** Événements différés arrivés à échéance */
@@ -1066,7 +1081,7 @@
 
   EV.fire = function (e) {
     var G = NS.G;
-    G.s.seen[e.id] = true;
+    if (!e.proc) G.s.seen[e.id] = true;   // les situations composées peuvent revenir, autrement
     NS.UI.event(e);
   };
 

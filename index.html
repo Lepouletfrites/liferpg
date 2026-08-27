@@ -114,18 +114,32 @@
 <script src="js/data.work.js"></script>
 <script src="js/data.education.js"></script>
 <script src="js/data.buildings.js"></script>
+<script src="js/data.gangs.js"></script>
 <script src="js/data.people.js"></script>
 <script src="js/data.finance.js"></script>
 <script src="js/state.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/finance.js"></script>
 <script src="js/buildings.js"></script>
+<script src="js/police.js"></script>
+<script src="js/gangs.js"></script>
 <script src="js/events.js"></script>
+<script src="js/events.proc.js"></script>
 <script src="js/probe.js"></script>
+<script src="js/audio.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>
 <script>
-if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+/* ?nosw désactive le cache hors-ligne et purge celui déjà en place :
+   indispensable pour développer sans se battre contre une version périmée. */
+if (/[?&]nosw/.test(location.search)) {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function (rs) {
+      rs.forEach(function (r) { r.unregister(); });
+    });
+  }
+  if (window.caches) caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); });
+} else if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('sw.js').catch(function () {});
   });

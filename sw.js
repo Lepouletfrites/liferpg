@@ -4,7 +4,7 @@
    servir un index.html périmé), stale-while-revalidate pour le
    reste. La sauvegarde vit dans localStorage, jamais ici.
    ============================================================= */
-var VERSION = 'liferpg-v4';
+var VERSION = 'liferpg-v8';
 var SHELL = [
   './',
   './index.html',
@@ -16,14 +16,19 @@ var SHELL = [
   './js/data.work.js',
   './js/data.education.js',
   './js/data.buildings.js',
+  './js/data.gangs.js',
   './js/data.people.js',
   './js/data.finance.js',
   './js/state.js',
   './js/engine.js',
   './js/finance.js',
   './js/buildings.js',
+  './js/police.js',
+  './js/gangs.js',
   './js/events.js',
+  './js/events.proc.js',
   './js/probe.js',
+  './js/audio.js',
   './js/ui.js',
   './js/main.js',
   './icons/icon-192.png',

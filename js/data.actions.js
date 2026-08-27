@@ -11,7 +11,7 @@
     /* ═══════════════════ JOUR — SURVIVRE ═══════════════════ */
 
     {
-      id: 'beg', ico: '🥺', n: 'Faire la manche', accent: 'var(--g-faim)', when: 'day',
+      id: 'beg', ico: '🥺', n: 'Faire la manche', accent: 'var(--g-faim)', when: 'day', income: true,
       d: 'Tendre la main dans un lieu de passage. Rentable le midi et le soir.',
       hours: 2, energy: 10, req: {},
       run: function (G) {
@@ -43,7 +43,7 @@
     },
 
     {
-      id: 'recycle', ico: '🥫', n: 'Collecter les canettes', accent: 'var(--info)', when: 'day',
+      id: 'recycle', ico: '🥫', n: 'Collecter les canettes', accent: 'var(--info)', when: 'day', income: true,
       d: 'Fastidieux, sale, sans aucun risque. Le revenu du désespoir tranquille.',
       hours: 3, energy: 16, req: {},
       run: function (G) {
@@ -56,7 +56,7 @@
     },
 
     {
-      id: 'scavenge', ico: '🗑️', n: 'Fouiller les poubelles', accent: '#8a7d5f', when: 'any',
+      id: 'scavenge', ico: '🗑️', n: 'Fouiller les poubelles', accent: '#8a7d5f', when: 'any', income: true,
       d: 'Derrière les supermarchés, à la fermeture. Nourriture, parfois mieux.',
       hours: 2, energy: 13, req: {},
       run: function (G) {
@@ -103,7 +103,7 @@
     },
 
     {
-      id: 'shower', ico: '🛁', n: 'Prendre une douche', accent: 'var(--g-hygiene)', when: 'any',
+      id: 'shower', ico: '🛁', n: 'Prendre une douche', accent: 'var(--g-hygiene)', when: 'any', atHome: true,
       d: 'Chez vous, à l’eau chaude. Hygiène au maximum.',
       hours: 1, energy: 2, req: { shower: true },
       run: function (G) {
@@ -125,7 +125,7 @@
     },
 
     {
-      id: 'rest', ico: '☕', n: 'Se reposer', accent: 'var(--g-energie)', when: 'any',
+      id: 'rest', ico: '☕', n: 'Se reposer', accent: 'var(--g-energie)', when: 'any', atHome: true,
       d: 'Une pause sur un banc ou chez soi. Récupère de l’énergie sans finir la journée.',
       hours: 2, energy: -20, req: {},
       run: function (G) {
@@ -139,7 +139,7 @@
     },
 
     {
-      id: 'nap', ico: '😴', n: 'Somme rapide', accent: 'var(--g-energie)', when: 'any',
+      id: 'nap', ico: '😴', n: 'Somme rapide', accent: 'var(--g-energie)', when: 'any', atHome: true,
       d: 'Une heure les yeux fermés. Moins efficace, mais moins cher en temps.',
       hours: 1, energy: -11, req: {},
       run: function (G) { return { t: 'neutral', m: 'Soixante minutes de sommeil volé. Ça suffira pour tenir.' }; }
@@ -157,26 +157,7 @@
       }
     },
 
-    {
-      id: 'workout', ico: '🏋️', n: 'Faire du sport', accent: '#f07a5a', when: 'any',
-      d: 'Barres de parc, course, pompes. Le corps est votre premier outil de travail.',
-      hours: 2, energy: 22, req: { sante: 25 },
-      run: function (G) {
-        G.xp('force', 13); G.add('hygiene', -12); G.add('moral', 5); G.add('sante', 3); G.add('faim', -6);
-        return { t: 'good', m: 'Vous poussez jusqu’à trembler. Demain vous serez un peu plus solide.' };
-      }
-    },
 
-    {
-      id: 'parkour', ico: '🤸', n: 'Grimper, courir, sauter', accent: '#f07a5a', when: 'any',
-      d: 'Les toits, les grilles, les échafaudages. Entraîne à la fois le corps et la discrétion.',
-      hours: 2, energy: 26, req: { sante: 35, force: 2 },
-      run: function (G) {
-        G.xp('force', 8); G.xp('discretion', 11); G.add('hygiene', -10); G.add('moral', 6);
-        if (G.chance(12)) { G.add('sante', -12); return { t: 'bad', m: 'Une réception ratée sur du gravier. Vous boitez le reste de la journée.' }; }
-        return { t: 'good', m: 'Vous apprenez la ville par ses arrières : gouttières, murets, toits plats.' };
-      }
-    },
 
     {
       id: 'leisure', ico: '🎬', n: 'Se faire plaisir en ville', accent: 'var(--purple)', when: 'day',
@@ -194,7 +175,7 @@
     {
       id: 'admin', ico: '🗃️', n: 'Démarches administratives', accent: 'var(--info)', when: 'day',
       d: 'Guichets, files d’attente, formulaires. Ingrat, lent, et pourtant décisif.',
-      hours: 4, energy: 14, req: { hyg: 20 },
+      hours: 3, energy: 12, req: { hyg: 20 },
       run: function (G) {
         var g = G.rnd(3, 7) + (G.has('smartphone') ? 2 : 0);
         G.rep('legale', g); G.add('moral', -7); G.xp('intelligence', 6);
@@ -236,7 +217,7 @@
     },
 
     {
-      id: 'plasma', ico: '🩸', n: 'Don de plasma indemnisé', accent: 'var(--danger)', when: 'day',
+      id: 'plasma', ico: '🩸', n: 'Don de plasma indemnisé', accent: 'var(--danger)', when: 'day', income: true,
       d: 'Légal, encadré, épuisant. Deux fois par semaine maximum.',
       hours: 3, energy: 24, req: { sante: 55, hyg: 40 },
       run: function (G) {
@@ -250,7 +231,7 @@
     },
 
     {
-      id: 'survey', ico: '📋', n: 'Micro-tâches en ligne', accent: 'var(--info)', when: 'any',
+      id: 'survey', ico: '📋', n: 'Micro-tâches en ligne', accent: 'var(--info)', when: 'any', income: true,
       d: 'Sondages, étiquetage de données, transcriptions. Peu payé, mais faisable partout.',
       hours: 2, energy: 9, req: { item: 'smartphone' },
       run: function (G) {
@@ -288,7 +269,7 @@
     },
 
     {
-      id: 'busk', ico: '🎸', n: 'Manche musicale', accent: 'var(--purple)', when: 'any',
+      id: 'busk', ico: '🎸', n: 'Manche musicale', accent: 'var(--purple)', when: 'any', income: true,
       d: 'Jouer dans le métro. Plus digne, plus rentable, et le public vous forme.',
       hours: 3, energy: 15, req: { item: 'guitare' },
       run: function (G) {
@@ -305,7 +286,7 @@
     },
 
     {
-      id: 'hawk', ico: '👜', n: 'Vendre à la sauvette', accent: '#c08a4e', when: 'any', risky: true,
+      id: 'hawk', ico: '👜', n: 'Vendre à la sauvette', accent: '#c08a4e', when: 'any', income: true, risky: true,
       d: 'Étaler une bâche, vendre des contrefaçons, replier en trente secondes.',
       hours: 3, energy: 18, req: { item: 'contrefacon' },
       run: function (G) {
@@ -398,7 +379,7 @@
     },
 
     {
-      id: 'nightwalk', ico: '🌃', n: 'Errer dans la ville', accent: 'var(--text-3)', when: 'night',
+      id: 'nightwalk', ico: '🌃', n: 'Errer dans la ville', accent: 'var(--text-3)', when: 'night', income: true,
       d: 'Marcher sans but pour ne pas dormir dehors immobile. C’est plus sûr, c’est plus long.',
       hours: 2, energy: 12, req: {},
       run: function (G) {
@@ -413,7 +394,7 @@
     },
 
     {
-      id: 'nightqueue', ico: '🎟️', n: 'Faire la queue pour d’autres', accent: 'var(--good)', when: 'night',
+      id: 'nightqueue', ico: '🎟️', n: 'Faire la queue pour d’autres', accent: 'var(--good)', when: 'night', income: true,
       d: 'Préfecture, billetterie, sneakers en édition limitée. On paie votre place dans la file.',
       hours: 4, energy: 16, req: {},
       run: function (G) {

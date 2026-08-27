@@ -183,6 +183,69 @@
   D.CASINO_GAME = {};
   D.CASINO.forEach(function (g) { D.CASINO_GAME[g.id] = g; });
 
+  /* ---------------------------------------------------------
+     AUTRES LIEUX — salle de sport, et de quoi en ajouter d'autres
+     --------------------------------------------------------- */
+  D.VENUES = [
+    {
+      id: 'gym', n: 'Salle de sport', ico: '🏋️', when: 'any',
+      d: 'Machines, tapis, poids libres. Le corps est un capital qui se déprécie sans entretien.',
+      req: {},
+      sessions: [
+        {
+          id: 'free', n: 'Barres du parc', ico: '🤸', hours: 2, energy: 22, price: 0,
+          d: 'Gratuit, dehors, sans matériel. Ça marche quand même.',
+          run: function (G) {
+            G.xp('force', 13); G.add('hygiene', -12); G.add('moral', 5);
+            G.add('sante', 3); G.add('faim', -6);
+            return { t: 'good', m: 'Vous poussez jusqu’à trembler. Demain vous serez un peu plus solide.' };
+          }
+        },
+        {
+          id: 'session', n: 'Séance en salle', ico: '🏋️', hours: 2, energy: 26, price: 12,
+          d: 'Machines guidées, douches comprises. Bien plus efficace que le parc.',
+          run: function (G) {
+            G.xp('force', 26); G.add('moral', 8); G.add('sante', 5); G.add('faim', -8);
+            G.set('hygiene', Math.min(100, G.gauge('hygiene') + 20));
+            return { t: 'good', m: 'Deux heures de fonte, puis une douche chaude. Le corps répond.' };
+          }
+        },
+        {
+          id: 'coach', n: 'Séance avec coach', ico: '🧑‍🏫', hours: 3, energy: 32, price: 55,
+          d: 'Programme personnalisé. Cher, mais on progresse deux fois plus vite.',
+          req: { charisme: 2 },
+          run: function (G) {
+            G.xp('force', 52); G.add('moral', 12); G.add('sante', 8); G.add('faim', -10);
+            G.set('hygiene', Math.min(100, G.gauge('hygiene') + 20));
+            G.xp('charisme', 4);
+            return { t: 'good', m: 'Le coach corrige chaque mouvement. Vous découvrez des muscles que vous ignoriez.' };
+          }
+        },
+        {
+          id: 'boxe', n: 'Cours de boxe', ico: '🥊', hours: 3, energy: 34, price: 30,
+          d: 'Apprendre à encaisser et à rendre. Utile bien au-delà du ring.',
+          req: { sante: 45 },
+          run: function (G) {
+            G.xp('force', 38); G.xp('discretion', 10); G.add('sante', -4); G.add('moral', 10);
+            G.flag('boxer', (G.flags('boxer') || 0) + 1);
+            return { t: 'good', m: 'Trois rounds, deux gnons pris, un rendu. Vous saurez vous défendre dehors.' };
+          }
+        },
+        {
+          id: 'sauna', n: 'Sauna & récupération', ico: '🧖', hours: 2, energy: -18, price: 20,
+          d: 'Ne muscle rien, mais récupère beaucoup. Le luxe du repos organisé.',
+          run: function (G) {
+            G.add('moral', 14); G.add('sante', 6);
+            G.set('hygiene', 100);
+            return { t: 'good', m: 'Chaleur sèche, eau froide, silence. Vous ressortez neuf.' };
+          }
+        }
+      ]
+    }
+  ];
+  D.VENUE = {};
+  D.VENUES.forEach(function (v) { D.VENUE[v.id] = v; });
+
   /* Conditions d'entrée du casino */
   D.CASINO_REQ = { app: 35 };
 

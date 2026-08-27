@@ -33,6 +33,45 @@ window.LifeRPG = window.LifeRPG || {};
   /** Affichage horaire : 26 -> "02h" */
   D.hh = function (h) { return String(((h % 24) + 24) % 24).padStart(2, '0') + 'h'; };
 
+  /* --------- CALENDRIER ---------
+     Le jour 1 est un lundi. Mois de 30 jours, semaines de 7 jours :
+     les deux ne s'alignent pas, exactement comme dans la vraie vie. */
+  D.WEEKDAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+  D.WEEKDAYS_SHORT = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  D.MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+  D.MONTH_LEN = 30;
+
+  /** @returns { dow, dowName, dowShort, week, month, monthName, dom, weekend } */
+  D.cal = function (day) {
+    var i = Math.max(0, day - 1);
+    var dow = i % 7;
+    var mi = Math.floor(i / D.MONTH_LEN);
+    return {
+      dow: dow,
+      dowName: D.WEEKDAYS[dow],
+      dowShort: D.WEEKDAYS_SHORT[dow],
+      weekend: dow >= 5,
+      week: Math.floor(i / 7) + 1,
+      month: mi + 1,
+      monthName: D.MONTHS[mi % 12],
+      dom: (i % D.MONTH_LEN) + 1
+    };
+  };
+
+  /** Étiquette compacte : « Lun 12 Janvier » */
+  D.dateLabel = function (day) {
+    var c = D.cal(day);
+    return c.dowShort + ' ' + c.dom + ' ' + c.monthName;
+  };
+
+  /* Périodicités de facturation et de paie */
+  D.PERIODS_PAY = {
+    day: { n: 'par jour', short: '/j', days: 1 },
+    week: { n: 'par semaine', short: '/sem', days: 7 },
+    month: { n: 'par mois', short: '/mois', days: 30 }
+  };
+
   /* ---------------------------------------------------------
      2. JAUGES
      --------------------------------------------------------- */
@@ -94,67 +133,67 @@ window.LifeRPG = window.LifeRPG || {};
      --------------------------------------------------------- */
   D.HOMES = [
     {
-      id: 'street', name: 'Trottoir', ico: '📦', rent: 0, sleep: 30, shower: false, addr: false,
+      id: 'street', name: 'Trottoir', ico: '📦', rent: 0, rentPer: 'day', sleep: 30, shower: false, addr: false,
       moral: -4, risk: 0.30, deposit: 0, safe: 0, cool: 0,
       desc: 'Un carton, un porche, et le bruit de la ville.', req: {}
     },
     {
-      id: 'tent', name: 'Tente sous le pont', ico: '⛺', rent: 0, sleep: 40, shower: false, addr: false,
+      id: 'tent', name: 'Tente sous le pont', ico: '⛺', rent: 0, rentPer: 'day', sleep: 40, shower: false, addr: false,
       moral: -3, risk: 0.22, deposit: 0, safe: 1, cool: 0,
       desc: 'Un camp toléré, entre le fleuve et la bretelle d’autoroute.', req: { item: 'tente' }
     },
     {
-      id: 'squat', name: 'Squat', ico: '🏚️', rent: 0, sleep: 46, shower: false, addr: false,
+      id: 'squat', name: 'Squat', ico: '🏚️', rent: 0, rentPer: 'day', sleep: 46, shower: false, addr: false,
       moral: -2, risk: 0.18, deposit: 0, safe: 1, cool: 1,
-      desc: 'Un toit, pas de facture. Et pas de garantie.', req: { repRue: 25 }
+      desc: 'Un toit, pas de facture. Et pas de garantie.', req: { repRue: 32 }
     },
     {
-      id: 'shelter', name: 'Foyer d’accueil', ico: '🛏️', rent: 8, sleep: 58, shower: true, addr: true,
+      id: 'shelter', name: 'Foyer d’accueil', ico: '🛏️', rent: 8, rentPer: 'day', sleep: 58, shower: true, addr: true,
       moral: 0, risk: 0.06, deposit: 0, safe: 2, cool: 1,
-      desc: 'Douche, lit, adresse administrative. Places limitées.', req: { hyg: 20 }
+      desc: 'Douche, lit, adresse administrative. Places limitées : il faut un dossier ouvert, ou quelqu’un qui parle pour vous.', req: { hyg: 20, repLeg: 14 }
     },
     {
-      id: 'caravane', name: 'Caravane', ico: '🚐', rent: 12, sleep: 62, shower: false, addr: true,
+      id: 'caravane', name: 'Caravane', ico: '🚐', rent: 84, rentPer: 'week', sleep: 62, shower: false, addr: true,
       moral: 1, risk: 0.10, deposit: 250, safe: 2, cool: 3,
       desc: 'Sur un terrain en périphérie. À vous, et mobile.', req: { repRue: 30 }
     },
     {
-      id: 'coloc', name: 'Colocation', ico: '🚻', rent: 20, sleep: 68, shower: true, addr: true,
+      id: 'coloc', name: 'Colocation', ico: '🚻', rent: 140, rentPer: 'week', sleep: 68, shower: true, addr: true,
       moral: 3, risk: 0.03, deposit: 120, safe: 2, cool: 0,
       desc: 'Quatre inconnus, une salle de bain, beaucoup de bruit.', req: { app: 34, repLeg: 10 }
     },
     {
-      id: 'room', name: 'Chambre meublée', ico: '🚪', rent: 28, sleep: 72, shower: true, addr: true,
+      id: 'room', name: 'Chambre meublée', ico: '🚪', rent: 196, rentPer: 'week', sleep: 72, shower: true, addr: true,
       moral: 2, risk: 0.02, deposit: 90, safe: 3, cool: 0,
       desc: 'Neuf mètres carrés à vous. Le luxe.', req: { app: 40 }
     },
     {
-      id: 'studio', name: 'Studio', ico: '🏢', rent: 52, sleep: 85, shower: true, addr: true,
+      id: 'studio', name: 'Studio', ico: '🏢', rent: 1560, rentPer: 'month', sleep: 85, shower: true, addr: true,
       moral: 4, risk: 0, deposit: 400, safe: 4, cool: 0,
       desc: 'Un vrai bail. Un vrai début.', req: { repLeg: 25 }
     },
     {
-      id: 'planque', name: 'Planque', ico: '🕳️', rent: 40, sleep: 60, shower: true, addr: false,
+      id: 'planque', name: 'Planque', ico: '🕳️', rent: 280, rentPer: 'week', sleep: 60, shower: true, addr: false,
       moral: -1, risk: 0, deposit: 600, safe: 5, cool: 6,
       desc: 'Un local sans nom sur la boîte aux lettres. La police ne vous y cherchera pas.', req: { repPegre: 30 }
     },
     {
-      id: 'appart', name: 'Appartement', ico: '🏙️', rent: 120, sleep: 93, shower: true, addr: true,
+      id: 'appart', name: 'Appartement', ico: '🏙️', rent: 3600, rentPer: 'month', sleep: 93, shower: true, addr: true,
       moral: 7, risk: 0, deposit: 1200, safe: 5, cool: 1,
       desc: 'Deux chambres, balcon, quartier calme.', req: { repLeg: 40 }
     },
     {
-      id: 'loft', name: 'Loft d’architecte', ico: '🌇', rent: 280, sleep: 97, shower: true, addr: true,
+      id: 'loft', name: 'Loft d’architecte', ico: '🌇', rent: 8400, rentPer: 'month', sleep: 97, shower: true, addr: true,
       moral: 11, risk: 0, deposit: 4000, safe: 6, cool: 2,
       desc: 'Béton ciré, baies vitrées, vue sur le fleuve.', req: { repLeg: 55 }
     },
     {
-      id: 'penthouse', name: 'Penthouse', ico: '🌃', rent: 750, sleep: 100, shower: true, addr: true,
+      id: 'penthouse', name: 'Penthouse', ico: '🌃', rent: 22500, rentPer: 'month', sleep: 100, shower: true, addr: true,
       moral: 16, risk: 0, deposit: 15000, safe: 8, cool: 3,
       desc: 'Le dernier étage. Vous regardez la rue d’où vous venez.', req: { repLeg: 70 }
     },
     {
-      id: 'villa', name: 'Villa avec gardien', ico: '🏰', rent: 2100, sleep: 100, shower: true, addr: true,
+      id: 'villa', name: 'Villa avec gardien', ico: '🏰', rent: 63000, rentPer: 'month', sleep: 100, shower: true, addr: true,
       moral: 20, risk: 0, deposit: 60000, safe: 10, cool: 5,
       desc: 'Grille électrique, caméras, personnel. Plus personne n’entre sans être annoncé.', req: { repLeg: 80 }
     }

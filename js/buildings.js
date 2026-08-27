@@ -219,6 +219,72 @@
   };
 
   /* =========================================================
+     2bis. Lieux (salle de sport, etc.)
+     ========================================================= */
+  G.venueLock = function (v) {
+    if (this.s.jail || this.s.hospital) return 'Indisponible';
+    var w = this.whenLock({ when: v.when || 'any' });
+    if (w) return w;
+    return this.checkReq(v.req);
+  };
+
+  G.sessionLock = function (v, sess) {
+    var lock = this.venueLock(v);
+    if (lock) return lock;
+    var r = this.checkReq(sess.req);
+    if (r) return r;
+    if (sess.hours > S.hoursLeft(this.s)) return 'Pas assez de temps';
+    if (sess.energy > 0 && this.s.gauges.energie < sess.energy * 0.5) return 'Vous êtes trop épuisé';
+    if (sess.price && !this.canPay(sess.price)) return 'Il faut ' + this.eur(sess.price);
+    return null;
+  };
+
+  G.doSession = function (venueId, sessId) {
+    var v = D.VENUE[venueId];
+    if (!v) return;
+    var sess = v.sessions.filter(function (x) { return x.id === sessId; })[0];
+    if (!sess) return;
+    var lock = this.sessionLock(v, sess);
+    if (lock) { NS.UI.toast(lock, 'bad'); return; }
+
+    if (sess.price && !this.spend(sess.price, v.n + ' — ' + sess.n)) {
+      NS.UI.toast('Argent insuffisant', 'bad'); return;
+    }
+    this.spendTime(sess.hours);
+    this.spendEnergy(sess.energy);
+    this.s.totals.actions++;
+
+    var res = sess.run(this) || {};
+    if (res.m) this.log('<b>' + v.ico + ' ' + sess.n + '</b> — ' + res.m, res.t || 'good');
+    this.afterAction(sess);
+  };
+
+  /* =========================================================
+     2ter. Planque à domicile
+     ========================================================= */
+  G.stashIn = function (amount) {
+    var s = this.s;
+    amount = Math.min(Math.round(amount), s.dirty, S.stashCap(s) - (s.stash || 0));
+    if (amount < 1) { NS.UI.toast('Impossible de planquer ça ici', 'bad'); return; }
+    s.dirty -= amount;
+    s.stash = (s.stash || 0) + amount;
+    this.log('Vous planquez ' + this.eur(amount) + ' d’argent sale chez vous.', 'money');
+    NS.UI.toast('📦 ' + this.eur(amount) + ' planqués', 'dirty');
+    NS.UI.refresh(); S.save(s);
+  };
+
+  G.stashOut = function (amount) {
+    var s = this.s;
+    amount = Math.min(Math.round(amount), s.stash || 0);
+    if (amount < 1) return;
+    s.stash -= amount;
+    s.dirty += amount;
+    this.log('Vous reprenez ' + this.eur(amount) + ' dans la planque.', 'money');
+    NS.UI.toast('🩸 ' + this.eur(amount) + ' repris', 'dirty');
+    NS.UI.refresh(); S.save(s);
+  };
+
+  /* =========================================================
      3. Décroissance quotidienne de la vigilance des commerces
      ========================================================= */
   G.tickShops = function () {

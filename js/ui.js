@@ -137,17 +137,19 @@
     var night = S.isNight(s);
 
     document.documentElement.style.setProperty('--tier', t.c);
+    applyTheme(s);
     $('app').classList.toggle('is-night', night);
 
-    $('avatar').textContent = s.jail ? '⛓️' : t.av;
+    $('avatar').textContent = s.jail ? '⛓️' : (s.hospital ? '🏥' : t.av);
     $('playerName').textContent = s.name;
     $('playerTier').textContent = t.n;
     $('wallet').textContent = eur(s.money);
     $('walletSub').innerHTML = (s.dirty > 0 ? '<span class="dirty">🩸 ' + eur(s.dirty) + '</span>' : '') +
       (s.bank.open ? '<span class="bankv">🏦 ' + eur(s.bank.checking + s.bank.savings) + '</span>' : '');
 
-    $('clock').textContent = 'Jour ' + s.day + ' · ' + per.ico + ' ' + per.label + ' · ' +
-      D.hh(s.hour) + ' · ' + S.hoursLeft(s) + ' h restantes';
+    var cal = D.cal(s.day);
+    $('clock').textContent = cal.dowName + ' ' + cal.dom + ' ' + cal.monthName +
+      ' · ' + per.ico + ' ' + D.hh(s.hour) + ' · ' + S.hoursLeft(s) + ' h restantes';
 
     $('gauges').innerHTML = D.GAUGES.map(function (g) {
       var v = Math.round(s.gauges[g.id]);
@@ -165,6 +167,8 @@
     if (s.casier) chips.push('<span class="chip chip--casier">📕 Casier ' + s.casier + '</span>');
     chips.push('<span class="chip">' + h.ico + ' ' + h.name + '</span>');
     if (s.job) chips.push('<span class="chip">' + D.JOB[s.job.id].ico + ' ' + D.JOB[s.job.id].n + '</span>');
+    if (s.gang) { var gg = D.GANG[s.gang.id]; chips.push('<span class="chip chip--gang">' + gg.ico + ' ' +
+      gg.ranks[s.gang.rank].n + '</span>'); }
     if (s.quests.length) chips.push('<span class="chip chip--quest">🎯 ' + s.quests.length + ' en cours</span>');
     $('topMeta').innerHTML = chips.join('');
 
@@ -172,6 +176,34 @@
     var urgent = S.hoursLeft(s) <= 2 || s.gauges.energie < 15;
     fab.className = 'sleepfab' + (urgent ? ' urgent' : '') + (night ? ' night' : '');
     fab.querySelector('.sleepfab__lbl').textContent = night ? 'Dormir' : 'Terminer';
+  }
+
+  /**
+   * L'interface suit la trajectoire du personnage : on démarre dans le noir
+   * de la rue, et l'écran s'éclaircit à mesure qu'on s'installe dans le monde
+   * légal. La criminalité, elle, garde tout dans l'ombre et vire au rouge.
+   */
+  function applyTheme(s) {
+    var path = S.path(s);              // −1 pègre … +1 légal
+    var comfort = S.comfort(s);        // 0 misère … 1 fortune
+    var light = Math.max(0, path) * comfort;   // il faut les deux pour s'éclaircir
+    var dark = Math.max(0, -path);
+
+    var root = document.documentElement;
+    /* fond : de #0a0c11 (nuit) à #1b2333 (jour bleuté) */
+    var L = Math.round(10 + light * 16);
+    root.style.setProperty('--bg', 'rgb(' + L + ',' + (L + 2) + ',' + (L + 8) + ')');
+    root.style.setProperty('--surface', 'rgb(' + (L + 10) + ',' + (L + 14) + ',' + (L + 24) + ')');
+    root.style.setProperty('--surface-2', 'rgb(' + (L + 17) + ',' + (L + 23) + ',' + (L + 36) + ')');
+    root.style.setProperty('--surface-3', 'rgb(' + (L + 25) + ',' + (L + 33) + ',' + (L + 51) + ')');
+    root.style.setProperty('--line', 'rgb(' + (L + 32) + ',' + (L + 41) + ',' + (L + 60) + ')');
+    root.style.setProperty('--text', light > 0.45 ? '#f3f6fc' : '#e9edf6');
+    root.style.setProperty('--text-3', 'rgb(' + (108 + light * 30) + ',' + (120 + light * 30) + ',' + (145 + light * 25) + ')');
+    /* teinte d'ambiance : dorée quand on s'élève, rouge sombre quand on sombre */
+    root.style.setProperty('--mood', dark > 0.15
+      ? 'rgba(190,60,50,' + (0.05 + dark * 0.13).toFixed(3) + ')'
+      : 'rgba(245,185,66,' + (0.02 + light * 0.10).toFixed(3) + ')');
+    $('app').classList.toggle('is-crooked', dark > 0.3);
   }
 
   /* =========================================================
@@ -242,17 +274,45 @@
 
     h.push(recommendedBlock());
 
-    var now = [], later = [], risky = [];
+    /* Référence : le meilleur revenu horaire réellement accessible aujourd'hui.
+       Tout ce qui rapporte trois fois moins part dans un tiroir : ça reste
+       jouable, mais ça n'encombre plus l'écran. */
+    var bestHourly = 0;
+    D.GIGS.forEach(function (g) {
+      if (G.canDo({ req: g.req, hours: G.gigHours(g), energy: g.energy, when: g.when })) return;
+      bestHourly = Math.max(bestHourly, g.pay(G) / G.gigHours(g));
+    });
+    if (s.job) {
+      var jj = D.JOB[s.job.id];
+      bestHourly = Math.max(bestHourly, jj.pay * (1 + (s.job.grade || 0) * 0.12) / G.gigHours(jj));
+    }
+
+    var now = [], later = [], risky = [], faded = [];
     D.ACTIONS.forEach(function (a) {
+      if (a.atHome) return;                       // ces actions vivent dans l'onglet Logement
       var w = a.when || 'day';
       var fits = (w === 'any') || (w === 'night') === night;
-      if (a.risky && fits) risky.push(a);
-      else if (fits) now.push(a);
-      else later.push(a);
+      if (!fits) { later.push(a); return; }
+      if (a.risky) { risky.push(a); return; }
+      if (a.income && bestHourly > 0 && !G.canDo(a)) {
+        var pv = NS.PROBE.previewAction(a);
+        var hourly = ((pv.money || 0) + (pv.dirty || 0)) / Math.max(1, a.hours);
+        if (hourly < bestHourly * 0.35) { faded.push(a); return; }
+      }
+      now.push(a);
     });
 
     h.push(sectionTitle(night ? 'Activités nocturnes' : 'Survivre aujourd’hui'));
     h.push(cardsWithLocked(now, actionCardOpts, 'Pas encore accessibles'));
+
+    if (faded.length) {
+      h.push('<details class="lockedGroup lockedGroup--faded">' +
+        '<summary><span class="lockedGroup__l">🥱 Ne vaut plus votre temps</span>' +
+        '<span class="lockedGroup__n">' + faded.length + '</span></summary>' +
+        hint('Vous gagnez bien mieux ailleurs désormais. Ces activités restent disponibles ' +
+          'si vous en avez besoin — elles ne sont simplement plus prioritaires.') +
+        '<div class="cards">' + faded.map(actionCard).join('') + '</div></details>');
+    }
 
     if (risky.length) {
       h.push(sectionTitle('⚠ Zone grise'));
@@ -437,24 +497,44 @@
       if (s.job) {
         var j = D.JOB[s.job.id];
         var hours = G.gigHours(j);
-        var sen = 1 + Math.floor(s.job.shifts / 10) * 0.08;
-        h.push(sectionTitle('Votre poste'));
+        var grade = s.job.grade || 0;
+        var sen = 1 + grade * 0.12;
+        var per = D.PERIODS_PAY[j.payPer || 'week'];
+        var left = G.shiftsLeft();
+        var toPay = Math.max(0, (s.job.payDue || s.day) - s.day);
+
+        h.push(sectionTitle('Votre contrat'));
         h.push('<div class="panel"><div class="panel__hd"><div class="panel__t">' + j.ico + ' ' + j.n + '</div>' +
-          '<span class="tag">' + s.job.shifts + ' quarts</span></div>' +
-          kv('Salaire par quart', eur(j.pay * sen)) +
-          kv('Ancienneté', '+' + Math.round((sen - 1) * 100) + ' %') +
-          kv('Prochaine augmentation', 'dans ' + (10 - (s.job.shifts % 10)) + ' quarts') +
+          '<span class="tag">Grade ' + grade + '</span></div>' +
+          kv('Jours travaillés', j.days.map(function (d) { return D.WEEKDAYS_SHORT[d]; }).join(' · ')) +
+          kv('Quota hebdomadaire', (s.job.weekShifts || 0) + ' / ' + j.quota + ' quarts',
+            left ? (left > 2 ? 'v-bad' : '') : 'v-good') +
+          kv('Rémunération', eur(j.pay * sen) + ' par quart' + (grade ? ' (+' + Math.round(grade * 12) + ' % de grade)' : '')) +
+          kv('Salaire en attente', eur(s.job.pending || 0), (s.job.pending || 0) > 0 ? 'v-good' : '') +
+          kv('Versement', per.n + ' · ' + (j.payBank ? 'virement bancaire' : 'espèces') +
+            ' · dans ' + toPay + ' j') +
+          kv('Absences cumulées', (s.job.absences || 0) + ' / 6',
+            (s.job.absences || 0) >= 4 ? 'v-bad' : ((s.job.absences || 0) ? '' : 'v-good')) +
+          kv('Prochain entretien de promotion', 'dans ' + (10 - (s.job.shifts % 10)) + ' quarts') +
           '</div>');
-        var shiftLock = G.canDo({ hours: hours, energy: j.energy, when: j.when });
+
+        if (left > 0) {
+          h.push('<div class="banner banner--warn">⚠️ Il vous reste <b>' + left + ' quart(s)</b> à prendre ' +
+            'cette semaine pour tenir le quota. Chaque quart manquant compte comme une absence — ' +
+            '<b>6 absences et vous êtes licencié</b>.</div>');
+        }
+
+        var shiftLock = G.shiftLock();
         h.push('<div class="cards mt">' + card({
-          ico: '▶️', title: 'Prendre son service', desc: 'Effectuer un quart de travail complet.',
+          ico: '▶️', title: 'Prendre son service',
+          desc: 'Un quart complet. La paie s’accumule et sera versée ' + per.n + '.',
           accent: 'var(--good)',
           gains: shiftLock ? '' : gainChips(NS.PROBE.previewShift(j, s.job.shifts), {
-            pay: NS.PROBE.previewJobPay(j, s.job.shifts), bank: j.payBank
+            pay: Math.round(j.pay * sen), bank: j.payBank
           }),
           costs: [cost('⏱ ' + hours + ' h', 'cost--time'), cost('⚡ −' + j.energy, 'cost--nrj'),
           j.when === 'night' ? cost('🌙 Nuit', 'cost--night') : null],
-          lock: G.canDo({ hours: hours, energy: j.energy, when: j.when }), act: 'shift', detail: 'shift:' + j.id
+          lock: shiftLock, act: 'shift', detail: 'shift:' + j.id
         }) + '</div>');
         h.push('<div class="btnRow"><button class="btn btn--ghost" data-act="quit">Démissionner</button></div>');
         h.push(sectionTitle('Évoluer'));
@@ -537,12 +617,121 @@
   /* =========================================================
      Onglet MILIEU
      ========================================================= */
+  /* --------- Gang --------- */
+  function renderGang() {
+    var s = G.s, h = [];
+    var gang = G.gang();
+
+    if (!gang) {
+      h.push(sectionTitle('Rejoindre une organisation'));
+      h.push(hint('Un gang vous ouvre des missions régulières, des grades et une protection. ' +
+        'En échange il <b>prélève une part</b> de tout ce que vous ramenez seul, ' +
+        'vous met à dos son rival, et n’aime pas qu’on parte.'));
+      if (s.flags.hunted > s.day) {
+        h.push('<div class="banner banner--warn">🩸 Vous êtes recherché pour avoir claqué la porte. ' +
+          'Encore ' + (s.flags.hunted - s.day) + ' jours à regarder derrière vous.</div>');
+      }
+      h.push(cardsWithLocked(D.GANGS, function (g) {
+        var lock = G.gangLock(g);
+        return {
+          ico: g.ico, title: g.n, desc: g.d + ' Territoire : ' + g.territory + '.',
+          accent: 'var(--danger)',
+          gains: lock ? '' : '<span class="card__gains">' +
+            '<span class="gain gain--up">' + g.ranks.length + ' grades</span>' +
+            '<span class="gain gain--dirty">part ' + Math.round(g.cut * 100) + ' %</span>' +
+            '<span class="gain gain--odds">rival : ' + D.GANG[g.rival].n + '</span></span>',
+          costs: [cost('Entrée : ' + (g.joinReq.repPegre ? '🕶️ ' + g.joinReq.repPegre : '🏙️ ' + (g.joinReq.repRue || 0)), 'cost--risk'),
+          cost('+' + Math.round(g.bonus.success) + ' % sur ' + catLabel(g.bonus.cats[0]), 'cost--pay')],
+          lock: lock, act: 'gangjoin', arg: g.id
+        };
+      }, 'Pas à votre portée'));
+      return h.join('');
+    }
+
+    /* --- membre --- */
+    var rank = G.gangRank(), next = G.gangNextRank();
+    h.push(sectionTitle(gang.ico + ' ' + gang.n));
+    h.push('<div class="panel"><div class="panel__hd"><div class="panel__t">' + rank.n + '</div>' +
+      '<span class="tag">grade ' + (s.gang.rank + 1) + '/' + gang.ranks.length + '</span></div>' +
+      kv('Missions accomplies', s.gang.missions) +
+      kv('Missions ratées', s.gang.failed + ' / 4', s.gang.failed >= 2 ? 'v-bad' : '') +
+      kv('Loyauté', Math.round(s.gang.loyalty) + ' / 100', s.gang.loyalty < 30 ? 'v-bad' : 'v-good') +
+      kv('Part prélevée sur vos coups', Math.round(gang.cut * 100) + ' %', 'v-dirty') +
+      kv('Membre depuis', (s.day - s.gang.since) + ' jours') +
+      '</div>');
+    h.push(bar(s.gang.loyalty));
+    h.push(hint('<b>' + rank.n + '</b> — ' + rank.perk));
+
+    if (next) {
+      var okM = s.gang.missions >= next.missions, okP = s.rep.pegre >= next.pegre;
+      h.push('<div class="panel mt"><div class="panel__t">⭐ Grade suivant : ' + next.n + '</div>' +
+        kv('Missions requises', s.gang.missions + ' / ' + next.missions, okM ? 'v-good' : '') +
+        kv('Réputation dans le milieu', Math.round(s.rep.pegre) + ' / ' + next.pegre, okP ? 'v-good' : '') +
+        kv('Ce que ça débloque', next.perk) +
+        '</div>');
+    } else {
+      h.push('<div class="banner banner--crime">Vous êtes au sommet de ' + gang.n + '. ' +
+        'Au-dessus, il n’y a plus personne à qui obéir.</div>');
+    }
+
+    h.push(sectionTitle('Missions'));
+    if (s.flags.missionDone === s.day) {
+      h.push('<div class="banner banner--warn">Vous avez déjà fait votre part aujourd’hui. ' +
+        'On vous rappellera demain.</div>');
+    }
+    h.push(cardsWithLocked(G.gangMissions(), function (m) {
+      var lock = G.missionLock(m);
+      var chance = lock ? 0 : G.missionChance(m);
+      var pay = G.missionPay(m);
+      return {
+        ico: m.ico, title: m.n, desc: m.d + ' ' + G.pick(m.texts),
+        accent: m.hurt > 0.25 ? 'var(--danger)' : 'var(--gold-2)',
+        gains: lock ? '' : '<span class="card__gains">' +
+          '<span class="gain gain--dirty">🩸 +' + eur(pay) + '</span>' +
+          '<span class="gain ' + (chance >= 55 ? 'gain--up' : 'gain--down') + '">🎯 ' + Math.round(chance) + ' %</span>' +
+          (m.hurt >= 0.2 ? '<span class="gain gain--down">🩹 blessure ' + Math.round(m.hurt * 100) + ' %</span>' : '') +
+          '</span>',
+        costs: [cost('⏱ ' + m.hours + ' h', 'cost--time'), cost('⚡ −' + m.energy, 'cost--nrj'),
+        cost('⚖️ ' + m.sentence + ' j encourus', 'cost--risk')],
+        lock: lock, act: 'gangmission', arg: m.id
+      };
+    }, 'Réservé aux grades supérieurs'));
+
+    /* missions verrouillées par le grade, pour donner à voir la suite */
+    var future = D.GANG_MISSIONS.filter(function (m) { return m.tier > s.gang.rank; });
+    if (future.length) {
+      h.push('<details class="lockedGroup"><summary>' +
+        '<span class="lockedGroup__l">🔒 Missions des grades supérieurs</span>' +
+        '<span class="lockedGroup__n">' + future.length + '</span></summary>' +
+        '<div class="cards mt">' + future.map(function (m) {
+          return card({
+            ico: m.ico, title: m.n, desc: m.d, accent: 'var(--line)',
+            costs: [cost('🩸 ≈ ' + eur(m.pay * 2), 'cost--pay'), cost('⚖️ ' + m.sentence + ' j', 'cost--risk')],
+            lock: 'Grade ' + (gang.ranks[m.tier] || {}).n + ' requis', act: 'noop'
+          });
+        }).join('') + '</div></details>');
+    }
+
+    h.push(sectionTitle('Quitter'));
+    h.push(hint('On ne démissionne pas d’un gang comme d’un emploi. Il y a trois façons de partir, ' +
+      'et deux d’entre elles font mal.'));
+    h.push('<div class="btnRow"><button class="btn btn--ghost btn--sm" data-act="gangleave">🚪 Envisager de partir</button></div>');
+    return h.join('');
+  }
+
+  function catLabel(id) {
+    var c = D.CRIME_CATS.filter(function (x) { return x.id === id; })[0];
+    return c ? c.l.toLowerCase() : id;
+  }
+
   function renderMilieu() {
     var s = G.s, h = [];
     h.push(subtabs('milieu', [
-      { id: 'coups', l: 'Coups' }, { id: 'marche', l: 'Marché' },
+      { id: 'coups', l: 'Coups' }, { id: 'gang', l: 'Gang' }, { id: 'marche', l: 'Marché' },
       { id: 'blanchiment', l: 'Blanchiment' }, { id: 'statut', l: 'Exposition' }
     ]));
+
+    if (sub.milieu === 'gang') { h.push(renderGang()); return h.join(''); }
 
     if (sub.milieu === 'coups') {
       h.push('<div class="banner banner--crime">' +
@@ -596,13 +785,18 @@
 
     if (sub.milieu === 'blanchiment') {
       h.push(sectionTitle('Argent sale'));
+      var weekLeft = Math.max(0, S.washWeekCap(s) - (s.washedWeek || 0));
       h.push('<div class="panel">' +
-        kv('Liquide non déclarable', eur(s.dirty), s.dirty ? 'v-dirty' : '') +
+        kv('Liquide non déclarable sur vous', eur(s.dirty), s.dirty ? 'v-dirty' : '') +
+        kv('📦 Planqué au logement', eur(s.stash || 0) + ' / ' + eur(S.stashCap(s))) +
+        kv('Plafond hebdomadaire restant', eur(weekLeft), weekLeft < 500 ? 'v-bad' : 'v-good') +
         kv('Total blanchi à ce jour', eur(s.totals.laundered)) +
         kv('Risque de saisie', s.heat >= D.BANK.seizeThreshold ? Math.round(NS.FIN.seizureRisk(s)) + ' % par contrôle' : 'faible') +
         '</div>');
       h.push(hint('L’argent sale ne compte qu’à <b>moitié</b> dans votre patrimoine, ne peut pas être déposé en banque ' +
-        'ni investi en bourse, et il est <b>intégralement saisi</b> en cas d’arrestation.'));
+        'ni investi en bourse, et il est <b>intégralement saisi</b> lors d’un contrôle. ' +
+        'On ne peut en blanchir qu’une <b>quantité limitée par semaine</b> : le reste doit dormir ' +
+        'dans une <b>planque</b>, où seule une perquisition peut le trouver.'));
 
       h.push(sectionTitle('Circuits disponibles'));
       h.push('<div class="cards">' + D.LAUNDER.map(function (m) {
@@ -630,9 +824,15 @@
         kv('Arrestations', s.totals.arrests + ' / 8', s.totals.arrests >= 5 ? 'v-bad' : '') +
         kv('Jours purgés', s.totals.jailDays) +
         kv('Délits commis', s.totals.crimes) +
-        kv('Probabilité d’arrestation en cas d’échec', Math.round(Math.max(0, 20 + s.heat * 0.55 - G.lvl('discretion') * 1.5)) + ' %') +
+        kv('Risque d’être contrôlé', Math.round(G.stopRisk()) + ' % par sortie', G.stopRisk() > 25 ? 'v-bad' : '') +
+        kv('Risque de perquisition', Math.round(G.raidRisk()) + ' % par nuit', G.raidRisk() > 10 ? 'v-bad' : '') +
         kv('Multiplicateur de peine (casier)', '×' + (1 + s.casier * 0.14).toFixed(2)) +
+        (s.flags.fines ? kv('🧾 Amendes impayées', eur(s.flags.fines), 'v-bad') : '') +
+        (s.flags.bail ? kv('⚖️ Procès en attente', 'jour ' + s.flags.bail.due, 'v-bad') : '') +
         '</div>');
+      h.push(hint('Un contrôle ne finit pas toujours en cellule : il peut se solder par un rappel à la loi, ' +
+        'une <b>amende</b>, une <b>saisie</b>, une garde à vue, ou une <b>comparution</b> où vous pourrez plaider, ' +
+        'contester ou payer une caution. En revanche, tout ce que vous portez sur vous est saisissable.'));
       h.push(hint('À <b>8 arrestations</b> ou <b>14 mentions</b> au casier, la peine devient définitive et la partie s’arrête.'));
 
       h.push(sectionTitle('Protections actives'));
@@ -924,8 +1124,8 @@
 
   function renderSac() {
     var s = G.s, h = [];
-    h.push(subtabs('sac', [{ id: 'inv', l: 'Inventaire' }, { id: 'home', l: 'Logement' }]));
-    if (sub.sac === 'shop') sub.sac = 'inv';
+    h.push(subtabs('sac', [{ id: 'inv', l: 'Inventaire' }]));
+    if (sub.sac !== 'inv') sub.sac = 'inv';
 
     if (sub.sac === 'inv') {
       var tenue = S.bestOf(s, 'tenue', 'style'), tr = S.bestOf(s, 'transport', 'speed'), te = S.bestOf(s, 'tech', 'tech');
@@ -952,8 +1152,8 @@
             return k === 'xp' ? '+' + it.use.xp[1] + ' XP ' + it.use.xp[0] : (it.use[k] > 0 ? '+' : '') + it.use[k] + ' ' + k;
           }).join(', ') : it.d,
           accent: sellMode ? 'var(--gold)' : (it.use ? 'var(--good)' : 'var(--line)'),
-          costs: [cost(sellMode ? 'Appuyer pour revendre' : (it.use ? 'Appuyer pour utiliser' : 'Objet durable')),
-          cost('Revente : ' + eur(it.price * (it.cat === 'luxe' ? 0.9 : 0.5)), 'cost--price')],
+          costs: [cost(sellMode ? '💱 Appuyer pour revendre' : (it.use ? 'Appuyer pour utiliser' : 'Objet durable')),
+          sellMode ? cost('Revente : ' + eur(it.price * (it.cat === 'luxe' ? 0.9 : 0.5)), 'cost--price') : null],
           act: it.use ? 'use' : 'sell', arg: id
         });
       }).join('') + '</div>');
@@ -961,45 +1161,12 @@
         '" data-act="sellmode">💱 ' + (sellMode ? 'Quitter le mode revente' : 'Mode revente') + '</button></div>');
     }
 
-    if (sub.sac === 'home') {
-      var cur = S.home(s);
-      h.push(sectionTitle('Logement'));
-      h.push('<div class="panel"><div class="panel__hd"><div class="panel__t">' + cur.ico + ' ' + cur.name + '</div>' +
-        '<span class="tag">' + (S.rent(s) ? eur(S.rent(s)) + '/nuit' : 'Gratuit') + '</span></div>' +
-        kv('Qualité du sommeil', '+' + cur.sleep + ' énergie') +
-        kv('Douche', cur.shower ? 'Oui' : 'Non', cur.shower ? 'v-good' : 'v-bad') +
-        kv('Adresse administrative', cur.addr ? 'Oui' : 'Non', cur.addr ? 'v-good' : 'v-bad') +
-        kv('Risque nocturne', Math.round(cur.risk * 100) + ' %', cur.risk > 0.1 ? 'v-bad' : '') +
-        kv('Sécurité des affaires', (cur.safe || 0) + ' / 10') +
-        kv('Pression policière retirée / nuit', '−' + (7 + (cur.cool || 0))) +
-        '</div>');
-      h.push(hint('Sans <b>adresse administrative</b>, aucun employeur ne vous déclarera et aucune banque ne vous ouvrira de compte.'));
-
-      h.push(sectionTitle('Déménager'));
-      h.push(cardsWithLocked(D.HOMES, function (hm) {
-        if (hm.id === s.home) return null;
-        var req = (hm.id === 'squat' && s.flags.squatOk) ? {} : hm.req;
-        var dep = s.flags.noDeposit ? 0 : hm.deposit;
-        var lock = G.checkReq(req) || (s.money < dep ? 'Caution de ' + eur(dep) : null);
-        return {
-          ico: hm.ico, title: hm.name, desc: hm.desc, accent: 'var(--info)',
-          costs: [cost(hm.rent ? eur(hm.rent) + '/nuit' : 'Sans loyer', 'cost--price'),
-          dep ? cost('Caution ' + eur(dep), 'cost--price') : null,
-          cost('😴 +' + hm.sleep), hm.addr ? cost('📮 Adresse', 'cost--pay') : null,
-          hm.cool ? cost('🫥 Discret +' + hm.cool, 'cost--risk') : null],
-          lock: lock, act: 'move', arg: hm.id
-        };
-      }, 'Hors de portée pour l’instant'));
-    }
     return h.join('');
   }
 
   /* =========================================================
-     Onglet VILLE — commerces et casino
+     Formation — tronc commun, examens, filières post-bac
      ========================================================= */
-  var openShop = null;     // commerce actuellement ouvert
-  var liftMode = false;    // mode « vol à l'étalage »
-
   function shopCard(shop) {
     var lock = G.shopLock(shop);
     var vig = G.shopVigilance(shop);
@@ -1142,11 +1309,166 @@
     return h.join('');
   }
 
+  /* --------- État des écrans imbriqués de l'onglet Ville --------- */
+  var openShop = null;     // commerce actuellement ouvert
+  var liftMode = false;    // mode « vol à l'étalage »
+  var openVenue = null;    // lieu actuellement ouvert
+
+  function renderVenues() {
+    var s = G.s, h = [];
+    if (openVenue && D.VENUE[openVenue]) {
+      var v = D.VENUE[openVenue];
+      h.push('<div class="btnRow"><button class="btn btn--ghost btn--sm" data-act="venueclose">‹ Retour aux lieux</button></div>');
+      h.push(sectionTitle(v.ico + ' ' + v.n));
+      h.push(hint(v.d));
+      var vlock = G.venueLock(v);
+      if (vlock) { h.push('<div class="banner banner--warn">🔒 ' + esc(vlock) + '</div>'); return h.join(''); }
+      h.push(cardsWithLocked(v.sessions, function (sess) {
+        var lk = G.sessionLock(v, sess);
+        return {
+          ico: sess.ico, title: sess.n, desc: sess.d, accent: 'var(--good)',
+          gains: lk ? '' : sessionGains(sess),
+          costs: [
+            cost('⏱ ' + sess.hours + ' h', 'cost--time'),
+            sess.energy > 0 ? cost('⚡ −' + sess.energy, 'cost--nrj') : cost('⚡ +' + (-sess.energy), 'cost--pay'),
+            sess.price ? cost(eur(sess.price), 'cost--price') : cost('Gratuit', 'cost--pay')
+          ],
+          lock: lk, act: 'session', arg: v.id + '|' + sess.id, detail: 'session:' + v.id + '|' + sess.id
+        };
+      }, 'Pas encore accessible'));
+      return h.join('');
+    }
+
+    h.push(hint('Des lieux où l’on passe du temps plutôt que d’acheter : entretenir son corps, tenter sa chance.'));
+    h.push(cardsWithLocked(D.VENUES.concat([{ id: '__casino', casino: true }]), function (v) {
+      if (v.casino) {
+        var clock = G.casinoLock();
+        return {
+          ico: '🎲', title: 'Casino municipal',
+          desc: 'Six tables, de la machine à sous au poker. La maison gagne toujours un peu.',
+          accent: 'var(--purple)',
+          costs: [cost('⏱ 1 h / partie', 'cost--time'), cost('Mise dès ' + eur(5), 'cost--price')],
+          lock: clock, act: 'sub', arg: 'ville:casino'
+        };
+      }
+      var lk = G.venueLock(v);
+      return {
+        ico: v.ico, title: v.n, desc: v.d, accent: 'var(--good)',
+        costs: [cost(v.sessions.length + ' formules', 'cost--time')],
+        lock: lk, act: 'venueopen', arg: v.id
+      };
+    }, 'Fermé pour l’instant'));
+    return h.join('');
+  }
+
+  /** Pastilles d'effet d'une séance, lues directement dans sa définition */
+  function sessionGains(sess) {
+    var pv = NS.PROBE.preview('v', sess.id, {
+      hours: sess.hours, energy: sess.energy,
+      exec: function (g) { return sess.run(g); }
+    });
+    return gainChips(pv);
+  }
+
+  /* --------- Logement --------- */
+  function renderLogement() {
+    var s = G.s, h = [];
+    var cur = S.home(s);
+    var per = D.PERIODS_PAY[S.rentPer(s)];
+    var rent = S.rent(s);
+    var due = Math.max(0, (s.rentDue || 0) - s.day);
+
+    h.push(sectionTitle('Votre logement'));
+    h.push('<div class="panel"><div class="panel__hd"><div class="panel__t">' + cur.ico + ' ' + cur.name + '</div>' +
+      '<span class="tag">' + (rent ? eur(rent) + ' ' + per.short : 'Gratuit') + '</span></div>' +
+      (rent ? kv('Prochaine échéance', due === 0 ? 'aujourd’hui' : 'dans ' + due + ' j', due <= 1 ? 'v-bad' : '') : '') +
+      (rent ? kv('Coût ramené au jour', eur(S.rentPerDay(s)) + ' / jour') : '') +
+      (s.rentLate ? kv('⚠️ Relances impayées', s.rentLate + ' / 3', 'v-bad') : '') +
+      kv('Qualité du sommeil', '+' + cur.sleep + ' énergie') +
+      kv('Douche', cur.shower ? 'Oui' : 'Non', cur.shower ? 'v-good' : 'v-bad') +
+      kv('Adresse administrative', cur.addr ? 'Oui' : 'Non', cur.addr ? 'v-good' : 'v-bad') +
+      kv('Risque nocturne', Math.round(cur.risk * 100) + ' %', cur.risk > 0.1 ? 'v-bad' : '') +
+      kv('Sûreté (planque)', (cur.safe || 0) + ' / 10 · ' + eur(S.stashCap(s)) + ' max') +
+      kv('Pression policière retirée / nuit', '−' + (7 + (cur.cool || 0))) +
+      '</div>');
+
+    if (s.rentLate) {
+      h.push('<div class="banner banner--warn"><b>Loyer impayé.</b> À la troisième relance vous êtes expulsé. ' +
+        'Vous pouvez tenter d’obtenir un délai — le bailleur écoutera d’autant mieux que vous savez parler.</div>');
+      h.push('<div class="cards">' + card({
+        ico: '🤝', title: 'Négocier un délai',
+        desc: 'Expliquer, promettre, gagner quelques jours. Se joue au charisme.',
+        accent: 'var(--info)',
+        gains: '<span class="card__gains"><span class="gain gain--odds">🎯 ' +
+          Math.round(clampPct(28 + G.lvl('charisme') * 6 + s.rep.legale * 0.2 + G.affVal('paulette') * 0.2 - s.rentLate * 8)) +
+          ' %</span></span>',
+        costs: [cost('⏱ 1 h', 'cost--time'), cost('⚡ −5', 'cost--nrj')],
+        lock: s.rentGrace > s.day ? 'Délai déjà accordé' : null,
+        act: 'negorent'
+      }) + '</div>');
+    }
+
+    /* actions liées au logement */
+    var homeActions = D.ACTIONS.filter(function (a) { return a.atHome; });
+    if (homeActions.length) {
+      h.push(sectionTitle('Chez vous'));
+      h.push(cardsWithLocked(homeActions, actionCardOpts, 'Nécessite un autre logement'));
+    }
+
+    /* planque d'argent sale */
+    if (S.dirtyTotal(s) > 0 || (cur.safe || 0) > 0) {
+      h.push(sectionTitle('Planque'));
+      h.push('<div class="panel">' +
+        kv('🩸 Sur vous', eur(s.dirty), s.dirty ? 'v-dirty' : '') +
+        kv('📦 Planqué ici', eur(s.stash || 0) + ' / ' + eur(S.stashCap(s))) +
+        '</div>');
+      h.push(hint('L’argent sale <b>sur vous</b> est saisi à chaque contrôle de police. Celui qui dort chez vous ' +
+        'ne risque qu’une perquisition — et seulement si la pression policière est forte.'));
+      h.push('<div class="grid2">' +
+        '<button class="btn btn--sm btn--ghost" data-act="stashin">📦 Planquer</button>' +
+        '<button class="btn btn--sm btn--ghost" data-act="stashout">🩸 Reprendre</button>' +
+        '</div>');
+    }
+
+    h.push(sectionTitle('Déménager'));
+    h.push(hint('Le loyer se paie <b>à l’échéance</b> du bail, pas chaque nuit : à la journée pour un foyer, ' +
+      'à la semaine pour un meublé, au mois pour un vrai bail.'));
+    h.push(cardsWithLocked(D.HOMES, function (hm) {
+      if (hm.id === s.home) return null;
+      var req = (hm.id === 'squat' && s.flags.squatOk) ? {} : hm.req;
+      var dep = s.flags.noDeposit ? 0 : hm.deposit;
+      var lock = G.checkReq(req) || (dep && !G.canPay(dep) ? 'Caution de ' + eur(dep) : null);
+      var hper = D.PERIODS_PAY[hm.rentPer || 'day'];
+      return {
+        ico: hm.ico, title: hm.name, desc: hm.desc, accent: 'var(--info)',
+        gains: lock ? '' : '<span class="card__gains">' +
+          '<span class="gain gain--cost">💶 ' + (hm.rent ? eur(hm.rent) + ' ' + hper.short : 'sans loyer') + '</span>' +
+          '<span class="gain gain--up">😴 +' + hm.sleep + '</span>' +
+          (hm.addr ? '<span class="gain gain--up">📮 adresse</span>' : '') + '</span>',
+        costs: [cost(hm.rent ? eur(Math.round(hm.rent / hper.days)) + ' / jour' : 'Sans loyer', 'cost--price'),
+        dep ? cost('Caution ' + eur(dep), 'cost--price') : null,
+        hm.shower ? cost('🚿 Douche', 'cost--pay') : null,
+        hm.cool ? cost('🫥 Discret +' + hm.cool, 'cost--risk') : null],
+        lock: lock, act: 'move', arg: hm.id
+      };
+    }, 'Hors de portée pour l’instant'));
+    return h.join('');
+  }
+
+  function clampPct(v) { return Math.max(5, Math.min(92, v)); }
+
   function renderVille() {
     var s = G.s, h = [];
-    h.push(subtabs('ville', [{ id: 'commerces', l: 'Commerces' }, { id: 'casino', l: 'Casino' }]));
+    h.push(subtabs('ville', [
+      { id: 'commerces', l: 'Commerces' },
+      { id: 'lieux', l: 'Lieux' },
+      { id: 'logement', l: 'Logement' },
+      { id: 'casino', l: 'Casino' }
+    ]));
 
     if (sub.ville === 'casino') { h.push(renderCasino()); return h.join(''); }
+    if (sub.ville === 'logement') { h.push(renderLogement()); return h.join(''); }
+    if (sub.ville === 'lieux') { h.push(renderVenues()); return h.join(''); }
 
     if (openShop && D.SHOP[openShop]) return h.join('') + renderShopFront(D.SHOP[openShop]);
 
@@ -1308,7 +1630,7 @@
 
   UI.setTab = function (t) {
     tab = t; sellMode = false;
-    if (t !== 'ville') { openShop = null; liftMode = false; }
+    if (t !== 'ville') { openShop = null; liftMode = false; openVenue = null; }
     $('screen').scrollTop = 0; UI.refresh();
   };
 
@@ -1327,6 +1649,28 @@
       el.classList.add('out');
       setTimeout(function () { el.remove(); toastCount--; }, 300);
     }, 1900);
+  };
+
+  /**
+   * Retour visuel fort : ce qui compte ne doit pas se découvrir dans le journal.
+   * Empilé sous l'en-tête, disparaît tout seul.
+   */
+  var flashHost = null;
+  UI.flash = function (msg, type) {
+    if (!flashHost) {
+      flashHost = document.createElement('div');
+      flashHost.className = 'flashes';
+      $('app').appendChild(flashHost);
+    }
+    if (flashHost.children.length > 3) flashHost.removeChild(flashHost.firstChild);
+    var el = document.createElement('div');
+    el.className = 'flash flash--' + (type || 'neutral');
+    el.innerHTML = msg;
+    flashHost.appendChild(el);
+    setTimeout(function () {
+      el.classList.add('out');
+      setTimeout(function () { if (el.parentNode) el.remove(); }, 400);
+    }, 3200);
   };
 
   UI.money = function (delta) {
@@ -1455,6 +1799,28 @@
         'votre argent liquide non déclaré a été saisi, et vos affaires continueront sans vous — au ralenti.</p>' +
         '<p>Vous ressortirez plus respecté dans le milieu, et beaucoup moins ailleurs.</p>',
       actions: [{ l: 'Purger la peine', h: days + ' jours passent', fn: function () { G.serveJail(); } }]
+    });
+  };
+
+  /** Affiche simplement l'issue d'une séquence (contrôle, fouille…) */
+  UI.resultModal = function (ico, title, text) {
+    UI.modal({
+      ico: ico, title: title, body: '<p>' + text + '</p>',
+      actions: [{ l: 'Continuer', h: '', fn: function () { UI.refresh(); } }]
+    });
+  };
+
+  /* --- Hôpital --- */
+  UI.hospitalScreen = function (days, reason, severity) {
+    var sev = ['', 'Blessures légères', 'Blessures sérieuses', 'Pronostic engagé'][severity] || 'Blessures';
+    UI.modal({
+      ico: '🏥', title: 'Hospitalisé', dismissible: false,
+      body: '<p><em>' + sev + '</em> — ' + reason + '.</p>' +
+        '<p>Vous restez <em>' + days + ' jours</em> à l’hôpital. Pendant ce temps, la vie continue sans vous : ' +
+        'les loyers tombent, les crédits se prélèvent, vos entreprises tournent au ralenti, ' +
+        'et les quarts de travail manqués comptent comme des absences.</p>' +
+        '<p>Vous en ressortirez soigné, avec une facture.</p>',
+      actions: [{ l: 'Se laisser soigner', h: days + ' jours passent', fn: function () { G.serveHospital(); } }]
     });
   };
 
@@ -1672,6 +2038,21 @@
     UI.modal({ ico: '🏦', title: title, body: '<p>Disponible : <b>' + eur(max) + '</b></p>', actions: acts });
   }
 
+  /** Une revente se confirme toujours : c'est irréversible */
+  function confirmSell(id) {
+    var it = D.ITEM[id];
+    var price = Math.round(it.price * (it.cat === 'luxe' ? 0.9 : 0.5));
+    UI.modal({
+      ico: it.ico, title: 'Revendre ' + it.n + ' ?',
+      body: '<p>Vous en tirerez <b>' + eur(price) + '</b>' +
+        (it.keep ? '. Cet objet est durable : vous devrez le racheter plein tarif.' : '.') + '</p>',
+      actions: [
+        { l: '💱 Revendre pour ' + eur(price), h: 'Irréversible', fn: function () { G.sellItem(id); } },
+        { l: 'Annuler', h: '', fn: null }
+      ]
+    });
+  }
+
   var HANDLERS = {
     action: function (arg) { G.doAction(arg); },
     crime: function (arg) { G.doCrime(arg); },
@@ -1719,8 +2100,12 @@
         });
       } else G.buyItem(arg, G.s.dirty >= it.price);
     },
-    use: function (arg) { sellMode ? G.sellItem(arg) : G.useItem(arg); },
-    sell: function (arg) { G.sellItem(arg); },
+    use: function (arg) { sellMode ? confirmSell(arg) : G.useItem(arg); },
+    sell: function (arg) {
+      /* hors mode vente, un objet durable ne fait rien : on n'en perd pas un par mégarde */
+      if (!sellMode) { UI.toast('Activez le mode revente pour vendre', 'bad'); return; }
+      confirmSell(arg);
+    },
     sellmode: function () { sellMode = !sellMode; UI.refresh(); },
     move: function (arg) { G.moveHome(arg); },
     npc: function (arg) { npcSheet(arg); },
@@ -1736,6 +2121,55 @@
       var m = D.LAUNDER.filter(function (x) { return x.id === arg; })[0];
       var max = Math.min(G.s.dirty, G.launderCap(m));
       amountPrompt('Blanchir via ' + m.n, max, function (v) { G.launder(arg, v); });
+    },
+    noop: function () {},
+    gangjoin: function (arg) {
+      var g = D.GANG[arg];
+      UI.modal({
+        ico: g.ico, title: 'Rejoindre ' + g.n + ' ?',
+        body: '<p>' + g.d + '</p>' +
+          '<p>Ils prélèveront <b>' + Math.round(g.cut * 100) + ' %</b> de tout ce que vous ramènerez seul, ' +
+          'et <b>' + D.GANG[g.rival].n + '</b> vous considérera comme un ennemi dès demain.</p>',
+        actions: [
+          { l: 'Entrer', h: 'On n’en sort pas facilement', risky: true, fn: function () { G.joinGang(arg); } },
+          { l: 'Réfléchir encore', h: '', fn: null }
+        ]
+      });
+    },
+    gangmission: function (arg) { G.doMission(arg); },
+    gangleave: function () {
+      var gang = G.gang();
+      if (!gang) return;
+      var rank = G.s.gang.rank;
+      var price = Math.round(2000 * (1 + rank * 0.9) * (1 + G.s.gang.missions * 0.03));
+      UI.modal({
+        ico: '🚪', title: 'Quitter ' + gang.n,
+        body: '<p>Trois portes de sortie, aucune n’est gratuite.</p>',
+        actions: [
+          { l: '💰 Racheter votre sortie (' + eur(price) + ')', h: 'Propre et cher',
+            locked: G.canPay(price) ? null : 'Il faut ' + eur(price),
+            fn: function () { G.leaveGang('pay'); } },
+          { l: '🗣️ Demander à partir', h: 'Charisme et loyauté — sinon ça tourne mal', risky: true,
+            fn: function () { G.leaveGang('talk'); } },
+          { l: '🩸 Disparaître', h: 'Ils vous chercheront pendant des semaines', risky: true,
+            fn: function () { G.leaveGang('run'); } },
+          { l: 'Rester', h: '', fn: null }
+        ]
+      });
+    },
+    venueopen: function (arg) { openVenue = arg; $('screen').scrollTop = 0; UI.refresh(); },
+    venueclose: function () { openVenue = null; $('screen').scrollTop = 0; UI.refresh(); },
+    session: function (arg) { var p = arg.split('|'); G.doSession(p[0], p[1]); },
+    negorent: function () { G.negotiateRent(); },
+    stashin: function () {
+      var max = Math.min(G.s.dirty, S.stashCap(G.s) - (G.s.stash || 0));
+      if (max < 1) { UI.toast('Aucune place dans la planque', 'bad'); return; }
+      amountPrompt('Planquer de l’argent sale', max, function (v) { G.stashIn(v); });
+    },
+    stashout: function () {
+      var max = G.s.stash || 0;
+      if (max < 1) { UI.toast('La planque est vide', 'bad'); return; }
+      amountPrompt('Reprendre de l’argent planqué', max, function (v) { G.stashOut(v); });
     },
     shopopen: function (arg) { openShop = arg; liftMode = false; $('screen').scrollTop = 0; UI.refresh(); },
     shopclose: function () { openShop = null; liftMode = false; $('screen').scrollTop = 0; UI.refresh(); },
