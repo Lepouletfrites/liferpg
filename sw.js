@@ -32,7 +32,11 @@ var SHELL = [
   './js/ui.js',
   './js/main.js',
   './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-512.png',
+   './audio/day.mp3',
+   './audio/night.mp3',
+   './audio/tension.mp3',
+   './audio/theme.mp3'
 ];
 
 self.addEventListener('install', function (e) {
