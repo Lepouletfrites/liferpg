@@ -85,6 +85,10 @@
     {
       id: 'dimitri', n: 'Dimitri', ico: '🔩', role: 'Ferrailleur', faction: 'rue', decay: 0.4,
       d: 'Une cour, une balance faussée, et aucune curiosité pour l’origine de ce qu’on lui apporte.',
+      topics: [
+        'Dimitri vous montre comment repérer le cuivre sous la peinture.',
+        'Dimitri ne demande jamais d’où vient ce que vous apportez. Vous finissez par ne plus demander non plus.'
+      ],
       favors: [
         { id: 'scale', n: 'Négocier la balance', aff: 20, once: true, d: 'Le vol de métal rapporte +30 %', run: function (G) { G.flag('scrapBoost', true); return 'La balance penche enfin de votre côté. Officiellement, elle a été réétalonnée.'; } },
         { id: 'tools', n: 'Récupérer des outils', aff: 35, once: true, d: 'Reçoit une caisse à outils', run: function (G) { G.give('outils', 1); return 'Il sort une caisse d’un container. « Elle a servi. Elle servira encore. »'; } },
@@ -152,6 +156,10 @@
     {
       id: 'clara', n: 'Clara Behn', ico: '🏦', role: 'Conseillère bancaire', faction: 'legal', decay: 0.6,
       d: 'Elle décide chaque jour qui mérite un crédit. Elle vous a d’abord dit non.',
+      topics: [
+        'Clara vous explique ce qu’un banquier regarde vraiment sur un relevé.',
+        'Clara referme un dossier d’un coup sec. « Celui-là, je ne pouvais rien faire. Le vôtre, si. »'
+      ],
       lock: { repLeg: 12 },
       favors: [
         { id: 'open', n: 'Faire ouvrir un compte', aff: 15, once: true, d: 'Ouvre un compte bancaire sans condition', run: function (G) { G.openBank(true); return 'Elle remplit le dossier elle-même et signe à votre place aux endroits sans importance.'; } },
@@ -164,6 +172,10 @@
     {
       id: 'bell', n: 'Maître Bellanger', ico: '⚖️', role: 'Avocate pénaliste', faction: 'legal', decay: 0.4,
       d: 'Elle ne demande jamais si vous l’avez fait. Elle demande ce qu’on peut prouver.',
+      topics: [
+        'Maître Bellanger vous explique la différence entre coupable et condamné.',
+        'Elle relit un dossier en fumant à la fenêtre. Elle dit qu’elle en a vu de pires, sans préciser lesquels.'
+      ],
       lock: { money: 300 },
       favors: [
         { id: 'retain', n: 'La mettre sur dossier', aff: 20, once: true, d: '1 500 € · les peines de prison sont réduites de 40 %', run: function (G) { if (G.money() < 1500) return null; G.cash(-1500, 'Provision sur honoraires'); G.flag('lawyer', true); return 'Elle encaisse la provision et vous tend une carte. « À partir de maintenant, vous ne dites plus un mot sans moi. »'; } },
@@ -175,6 +187,10 @@
     {
       id: 'paulette', n: 'Paulette', ico: '🔑', role: 'Bailleuse', faction: 'legal', decay: 0.5,
       d: 'Six immeubles, aucun intermédiaire, et un jugement instantané sur les gens.',
+      topics: [
+        'Paulette vous raconte l’immeuble qu’elle a racheté en 1994, « pour une bouchée de pain, et un genou en moins ».',
+        'Elle vous jauge de haut en bas et dit ce qu’elle pense sans qu’on lui ait rien demandé.'
+      ],
       lock: { repLeg: 18 },
       favors: [
         { id: 'nodeposit', n: 'Louer sans caution', aff: 30, once: true, d: 'Toutes les cautions de logement sont annulées', run: function (G) { G.flag('noDeposit', true); return '« Je te fais confiance. Ne m’oblige pas à regretter. » Plus aucune caution à avancer.'; } },
@@ -186,6 +202,10 @@
     {
       id: 'vidal', n: 'Alex Vidal', ico: '🕴️', role: 'Investisseur', faction: 'legal', decay: 0.7,
       d: 'Il repère les gens avant qu’ils ne deviennent quelqu’un. Il vous observe.',
+      topics: [
+        'Vidal vous parle de son premier échec comme d’une master class gratuite.',
+        'Il regarde son téléphone pendant que vous parlez, puis répète votre dernière phrase mot pour mot.'
+      ],
       lock: { repLeg: 30 },
       favors: [
         { id: 'seed', n: 'Lever des fonds', aff: 45, cd: 12, d: 'Reçoit 15 000 € de capital', run: function (G) { G.cash(15000, 'Levée de fonds'); G.rep('legale', 5); return 'Il signe un chèque sans cligner. « Ne me décevez pas. »'; } },
@@ -224,6 +244,10 @@
     {
       id: 'bruno', n: 'Bruno', ico: '🦍', role: 'Homme de main', faction: 'pegre', decay: 0.5,
       d: 'Cent dix kilos, très peu de mots, et une fidélité qui ne s’achète pas — elle se mérite.',
+      topics: [
+        'Bruno vous montre une cicatrice sans raconter l’histoire qui va avec.',
+        'Il compte les répétitions à voix basse. Vous n’avez jamais fait autant de tractions de votre vie.'
+      ],
       lock: { repPegre: 15 },
       favors: [
         { id: 'spar', n: 'S’entraîner avec lui', aff: 20, cd: 4, d: '+150 XP Force', run: function (G) { G.xp('force', 150); G.add('sante', -6); return 'Deux heures dans une cave. Vous ne gagnez pas une seule fois. Vous progressez énormément.'; } },
@@ -236,6 +260,10 @@
     {
       id: 'nadia', n: 'Nadia', ico: '🧤', role: 'Monte-en-l’air', faction: 'pegre', decay: 0.6,
       d: 'Elle entre partout et ne laisse rien. Elle facture en conséquence.',
+      topics: [
+        'Nadia démonte une serrure sur la table de la cuisine, juste pour le plaisir de la remonter plus vite.',
+        'Elle vous dit que la meilleure cambrioleuse n’est jamais celle qu’on remarque. Vous comprenez qu’elle parle d’elle.'
+      ],
       lock: { repPegre: 20 },
       favors: [
         { id: 'lesson', n: 'Prendre une leçon', aff: 20, cd: 4, d: '+160 XP Discrétion', run: function (G) { G.xp('discretion', 160); return 'Elle vous fait crocheter la même serrure quarante fois. À la quarantième, vous mettez huit secondes.'; } },
@@ -248,6 +276,10 @@
     {
       id: 'legrec', n: 'Le Grec', ico: '🐺', role: 'Il ne porte pas de titre', faction: 'pegre', decay: 0.3,
       d: 'Il ne hausse jamais la voix. On lui obéit avant qu’il ne demande.',
+      topics: [
+        'Le Grec ne parle jamais de lui. Il parle des autres, et vous apprenez beaucoup sur vous en l’écoutant.',
+        'Il vous sert un café qu’il ne sert à personne d’autre. Vous comprenez que c’est un message.'
+      ],
       lock: { flag: 'grecOk' },
       favors: [
         { id: 'blessing', n: 'Obtenir sa bénédiction', aff: 30, once: true, d: 'Réputation pègre +30 · tous les coups réussissent mieux', run: function (G) { G.rep('pegre', 30); G.flag('blessed', true); return 'Il pose la main sur votre épaule devant six personnes. C’est une signature.'; } },
@@ -262,6 +294,93 @@
         onDone: function (G) { G.aff('legrec', 30); G.rep('pegre', 20); return 'Il fait compter la somme devant vous, puis vous la rend entièrement. « Ce n’était pas l’argent que je voulais voir. »'; },
         onFail: function (G) { G.aff('legrec', -35); G.rep('pegre', -15); return 'Personne ne vous dit rien. C’est précisément le problème.'; }
       }
+    },
+
+    {
+      id: 'salome', n: 'Salomé', ico: '🩹', role: 'Infirmière de rue', faction: 'rue', decay: 0.5,
+      d: 'Elle fait sa tournée avec un sac à dos et aucune autorisation officielle. Ce qu’elle sait faire, elle le fait, un point c’est tout.',
+      topics: [
+        'Salomé recoud une plaie sous un lampadaire, à la lumière du téléphone.',
+        'Elle vous demande depuis quand vous n’avez pas vu un vrai médecin. Vous ne répondez pas tout de suite.',
+        'Elle parle des overdoses de l’hiver dernier avec une colère froide, jamais tout à fait éteinte.'
+      ],
+      favors: [
+        { id: 'patch', n: 'Faire soigner une plaie', aff: 15, cd: 3, d: 'Santé +25, gratuit', run: function (G) { G.add('sante', 25); return 'Elle nettoie, désinfecte, recoud si besoin. « Reviens si ça chauffe. »'; } },
+        { id: 'kit', n: 'Recevoir une trousse', aff: 30, cd: 8, d: 'Reçoit 2 médicaments', run: function (G) { G.give('medoc', 2); return 'Elle sort deux boîtes d’un sac qui semble ne jamais se vider.'; } },
+        { id: 'clean', n: 'Se faire aider à décrocher', aff: 50, once: true, d: 'Réduit durablement la dépendance', run: function (G) { if (!G.flags('addict')) return null; G.flag('addict', Math.max(0, G.flags('addict') - 2)); G.flag('salomeSupport', true); return 'Elle vous inscrit à un suivi qu’elle finance elle-même en partie. « On y va doucement. Mais on y va. »'; } },
+        { id: 'network', n: 'Le réseau des soignants', aff: 70, once: true, d: 'Réputation de rue +20 · soins gratuits mieux accueillis', run: function (G) { G.rep('rue', 20); G.flag('careNet', true); return 'Elle vous présente à deux collègues bénévoles. Vous ne serez plus jamais complètement seul face à une blessure.'; } }
+      ]
+    },
+
+    {
+      id: 'momo', n: 'Momo', ico: '🎒', role: 'Quatorze ans, coursier improvisé', faction: 'rue', decay: 0.7,
+      d: 'Il connaît toutes les issues de secours et aucune des tables de multiplication. Personne ne s’occupe vraiment de lui.',
+      topics: [
+        'Momo vous montre un raccourci que même les livreurs ne connaissent pas.',
+        'Il vous demande si vous êtes déjà allé au collège. Il pose la question comme s’il parlait d’un autre pays.',
+        'Il compte l’argent qu’il vous doit deux fois, pour être sûr, puis vous le rend en entier.'
+      ],
+      favors: [
+        { id: 'errand', n: 'Lui confier une course', aff: 15, cd: 2, d: '+10–25 €, il connaît du monde', run: function (G) { var g = G.rnd(10, 25); G.cash(g, 'Course de Momo'); return 'Il revient essoufflé, avec ' + G.eur(g) + ' négociés on ne sait comment.'; } },
+        { id: 'eyes', n: 'Ses yeux dans la rue', aff: 35, once: true, d: '+10 discrétion en repérage : les coups réussissent mieux', run: function (G) { G.flag('lookout', true); G.xp('discretion', 30); return 'Il vous montre où se planquent les vigiles à chaque heure de la journée. C’est un métier qu’il n’a pas choisi.'; } },
+        { id: 'school', n: 'L’aider à retourner à l’école', aff: 55, once: true, d: 'Coûte 600 € · moral +20 définitif', run: function (G) { if (G.money() < 600) return null; G.cash(-600, 'Inscription de Momo'); G.add('moral', 20); G.rep('legale', 8); G.flag('momoSaved', true); return 'Vous payez les fournitures et convainquez une assistante sociale de rouvrir le dossier. Il ne dit rien, mais il revient vous voir avec un cahier tout neuf.'; } }
+      ],
+      quest: {
+        id: 'momo_papers', aff: 30, days: 10, ico: '🎒',
+        n: 'Le dossier de Momo', d: 'Pour l’inscrire quelque part, il faut une adresse. La vôtre suffira, s’il en existe une.',
+        goal: 'Habiter un logement avec adresse administrative',
+        check: function (G) { return !!G.home().addr; },
+        onDone: function (G) { G.aff('momo', 20); G.rep('legale', 6); G.add('moral', 10); return 'Le dossier passe. Momo dort mal la nuit qui précède son premier jour, et vous aussi, un peu.'; },
+        onFail: function (G) { G.aff('momo', -20); return 'Il a cessé de poser la question. Il a treize ans de trop pour encore espérer que quelqu’un s’en charge.'; }
+      }
+    },
+
+    {
+      id: 'isaure', n: 'Isaure', ico: '🎙️', role: 'Journaliste indépendante', faction: 'legal', decay: 0.6,
+      d: 'Elle enquête sur ceux que la ville préfère ne pas voir. Elle vous a d’abord pris pour un sujet, puis pour quelqu’un.',
+      lock: { repLeg: 8 },
+      topics: [
+        'Isaure vous montre ses notes : trois cahiers remplis de gens que personne d’autre n’a interrogés.',
+        'Elle vous demande la permission avant chaque question un peu personnelle. Vous n’y êtes pas habitué.',
+        'Elle râle contre son rédacteur en chef, qui préfère les faits divers aux enquêtes de fond.'
+      ],
+      favors: [
+        { id: 'interview', n: 'Témoigner pour son reportage', aff: 20, cd: 6, d: 'Réputation légale +10', run: function (G) { G.rep('legale', 10); G.add('moral', 4); return 'Votre témoignage, anonymisé, ouvre son article. Des lecteurs qui ne vous ont jamais croisé se sentent un peu concernés.'; } },
+        { id: 'expose', n: 'Publier votre histoire', aff: 45, once: true, d: 'Réputation légale +25 · 1 500 € de dons reçus', run: function (G) { G.rep('legale', 25); G.cash(1500, 'Cagnotte de soutien'); G.add('moral', 15); return 'L’article sort en une du site. Une cagnotte se monte sans que vous l’ayez demandée. ' + G.eur(1500) + ' tombent en trois jours.'; } },
+        { id: 'protect', n: 'Faire taire une rumeur', aff: 65, once: true, d: 'Pression policière −25 · réputation légale +10', run: function (G) { G.heat(-25); G.rep('legale', 10); return 'Un article qui vous aurait fait du tort ne sortira jamais. Elle ne vous dit pas ce qu’il lui en a coûté d’y renoncer.'; } }
+      ]
+    },
+
+    {
+      id: 'farid', n: 'Farid', ico: '🔧', role: 'Fournisseur discret', faction: 'pegre', decay: 0.5,
+      d: 'Armes, outils, matériel qu’on ne trouve pas en magasin. Il ne pose jamais de questions, et il n’oublie jamais un prix.',
+      lock: { repPegre: 20 },
+      topics: [
+        'Farid déballe une caisse sur la table, articles rangés comme un catalogue.',
+        'Il vous explique pourquoi tel matériel coûte plus cher que tel autre, avec une précision presque pédagogique.',
+        'Il refuse de vendre à quelqu’un qu’il ne sent pas. « Un mauvais client coûte plus cher qu’un bon prix. »'
+      ],
+      favors: [
+        { id: 'deal', n: 'Négocier un tarif', aff: 20, cd: 7, d: 'Reçoit des gants gratuitement', run: function (G) { if (G.has('gants')) return null; G.give('gants', 1); return '« Cadeau de bienvenue. La suite, elle, se paiera. »'; } },
+        { id: 'gear', n: 'Le kit complet', aff: 45, once: true, d: 'Reçoit crochets et brouilleur d’alarme', run: function (G) { G.give('crochets', 1); G.give('brouilleur', 1); return 'Il pose deux mallettes sur le comptoir. « Du matériel sérieux, pour du travail sérieux. »'; } },
+        { id: 'contact', n: 'Présentation à un armurier', aff: 65, once: true, d: 'Débloque l’achat d’armes sans réputation minimale', run: function (G) { G.flag('faridArmes', true); return 'Un appel, une adresse griffonnée sur un ticket de caisse. « Dis que c’est moi qui envoie. »'; } }
+      ]
+    },
+
+    {
+      id: 'ines', n: 'Inès', ico: '💸', role: 'Blanchisseuse indépendante', faction: 'pegre', decay: 0.5,
+      d: 'Elle fait circuler l’argent sale à travers trois pays avant qu’il ne ressorte propre. Plus cher que la banque, plus discrète aussi.',
+      lock: { repPegre: 25 },
+      topics: [
+        'Inès vous explique le trajet d’un billet, de la rue à un compte à l’étranger, en moins de deux minutes.',
+        'Elle ne travaille jamais avec plus de trois clients à la fois. « Au-delà, on devient un dossier. »',
+        'Elle compte tout de tête, sans jamais se tromper, et sans jamais sortir de calculatrice.'
+      ],
+      favors: [
+        { id: 'wash', n: 'Blanchir un lot', aff: 25, cd: 5, d: 'Blanchit jusqu’à 12 000 € à 12 % de frais (6 % avec le compte fantôme)', run: function (G) { var d = Math.min(12000, G.dirtyVal()); if (d < 300) return null; var fee = G.flags('inesRate') ? 0.06 : 0.12; var net = G.launderRaw(d, fee); return G.eur(net) + ' arrivent propres, moins vite que chez un banquier, mais sans aucune question.'; } },
+        { id: 'stash', n: 'Agrandir votre planque', aff: 50, once: true, d: 'Capacité de planque +6 000 € définitivement', run: function (G) { G.flag('stashBonus', (G.flags('stashBonus') || 0) + 6000); return 'Elle vous montre comment doubler un mur creux. « Personne ne cherche là où il n’y a rien à voir. »'; } },
+        { id: 'ghostmoney', n: 'Compte fantôme à l’étranger', aff: 75, once: true, d: 'Blanchiment permanent à frais réduits de moitié', run: function (G) { G.flag('inesRate', true); return 'Un compte qui n’existe sur aucun registre français. Désormais, ce qu’elle blanchit pour vous coûte deux fois moins cher.'; } }
+      ]
     }
   ];
 

@@ -55,7 +55,7 @@
       id: 'handy', n: 'Petits dépannages', ico: '🧰', hours: 4, energy: 28, when: 'day',
       d: 'Fuites, serrures, étagères. Le bouche-à-oreille fait le reste.',
       req: { item: 'outils', hyg: 40, force: 2 },
-      pay: function (G) { return G.rnd(70, 105) + G.lvl('force') * 5 + G.lvl('intelligence') * 4; },
+      pay: function (G) { return G.rnd(45, 65) + G.lvl('force') * 3 + G.lvl('intelligence') * 3; },
       xp: { force: 8, intelligence: 6 }, rep: { legale: 2, rue: 1 }, hyg: -9
     },
     {
@@ -370,5 +370,20 @@
   ];
   D.BIZI = {};
   D.BIZ.forEach(function (b) { D.BIZI[b.id] = b; });
+
+  /* ---------------------------------------------------------
+     EMPLACEMENT — choisi à la fondation, change le capital de
+     départ, le rendement, et (activité illégale) le risque.
+     --------------------------------------------------------- */
+  D.BIZ_LOCS = [
+    { id: 'modeste', n: 'Local modeste', ico: '📦', costMult: 0.7, revMult: 0.8, riskMult: 0.7,
+      d: 'Bon marché, en périphérie. Moins de clients — moins d’yeux aussi.' },
+    { id: 'correct', n: 'Emplacement correct', ico: '🏬', costMult: 1, revMult: 1, riskMult: 1,
+      d: 'Ni discret ni voyant. Le choix par défaut.' },
+    { id: 'premium', n: 'Emplacement premium', ico: '✨', costMult: 1.6, revMult: 1.4, riskMult: 1.5,
+      d: 'Vitrine, passage, loyer élevé. Ça se voit — dans les deux sens.' }
+  ];
+  D.BIZ_LOC = {};
+  D.BIZ_LOCS.forEach(function (l) { D.BIZ_LOC[l.id] = l; });
 
 })(window.LifeRPG);

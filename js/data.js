@@ -114,7 +114,7 @@ window.LifeRPG = window.LifeRPG || {};
      5. PALIERS SOCIAUX
      --------------------------------------------------------- */
   D.TIERS = [
-    { n: 'Sans-abri', min: -99999999, c: '#7a8699', av: '🧍' },
+    { n: 'Fauché', min: -99999999, c: '#7a8699', av: '🧍' },
     { n: 'Survivant', min: 200, c: '#96826a', av: '🧑‍🦰' },
     { n: 'Débrouillard', min: 1200, c: '#c08a4e', av: '🧑‍🔧' },
     { n: 'Travailleur', min: 5000, c: '#c3ccd8', av: '🧑‍🍳' },
@@ -226,7 +226,7 @@ window.LifeRPG = window.LifeRPG || {};
     { id: 'medoc', n: 'Médicaments', ico: '💊', cat: 'care', shop: 'city', price: 18, d: 'Soigne blessures et infections.', use: { sante: 32 } },
     { id: 'vitamines', n: 'Vitamines', ico: '🧴', cat: 'care', shop: 'city', price: 10, d: 'Coup de boost général.', use: { sante: 12, energie: 16 } },
     { id: 'antidep', n: 'Traitement prescrit', ico: '🩺', cat: 'care', shop: 'city', price: 45, d: 'Stabilise le moral pour plusieurs jours.', use: { moral: 30, sante: 4 }, req: { addr: true } },
-    { id: 'alcool', n: 'Bouteille d’alcool', ico: '🍾', cat: 'care', shop: 'city', price: 6, d: 'Oublier vite. Le payer lentement.', use: { moral: 18, sante: -8, hygiene: -4, energie: -5 } },
+    { id: 'alcool', n: 'Bouteille d’alcool', ico: '🍾', cat: 'care', shop: 'city', price: 6, d: 'Oublier vite. Le payer lentement.', use: { moral: 18, sante: -8, hygiene: -4, energie: -5 }, addictRisk: 20 },
     { id: 'livre', n: 'Livre d’occasion', ico: '📕', cat: 'care', shop: 'city', price: 14, d: 'Lecture : +30 XP Intelligence.', use: { xp: ['intelligence', 30], moral: 3 } },
     { id: 'manuel', n: 'Manuel technique', ico: '📘', cat: 'care', shop: 'city', price: 55, d: 'Dense, aride, décisif : +90 XP Intelligence.', use: { xp: ['intelligence', 90], moral: -2 } },
 
@@ -272,6 +272,12 @@ window.LifeRPG = window.LifeRPG || {};
     { id: 'faux', n: 'Faux papiers', ico: '🪪', cat: 'crime', shop: 'street', price: 600, d: 'Consommable : annule une arrestation.', req: { repPegre: 15 } },
     { id: 'arme', n: 'Arme de poing', ico: '🔫', cat: 'crime', shop: 'street', price: 1800, keep: true, d: 'Ouvre les gros coups. Alourdit chaque condamnation.', req: { repPegre: 35 } },
     { id: 'came', n: 'Lot de marchandise', ico: '🧊', cat: 'crime', shop: 'street', price: 200, d: 'Stock à écouler. Se revend au détail, la nuit.', req: { repRue: 20 } },
+    { id: 'herbe', n: 'Herbe', ico: '🌿', cat: 'crime', shop: 'street', price: 25, d: 'Se fume ou se revend au coin de la rue. Le risque le plus bas du marché.', req: { repRue: 8 },
+      use: { moral: 14, energie: -6, faim: 10 }, addictRisk: 8 },
+    { id: 'cachets', n: 'Cachets', ico: '💊', cat: 'crime', shop: 'street', price: 60, d: 'Petits comprimés, grosse marge. Se revend vite en soirée.', req: { repRue: 15 },
+      use: { moral: 24, energie: 18, sante: -6 }, addictRisk: 22 },
+    { id: 'poudre', n: 'Poudre', ico: '🧂', cat: 'crime', shop: 'street', price: 140, d: 'La plus chère, la plus surveillée, la plus rentable si on ne se fait pas prendre.', req: { repRue: 25, repPegre: 10 },
+      use: { moral: 32, energie: 34, sante: -14, hygiene: -6 }, addictRisk: 38 },
     { id: 'contrefacon', n: 'Lot de contrefaçons', ico: '👜', cat: 'crime', shop: 'street', price: 140, d: 'Sacs, montres, parfums. À vendre à la sauvette.', req: { repRue: 12 } },
     { id: 'skimmer', n: 'Copieur de cartes', ico: '💳', cat: 'crime', shop: 'street', price: 1200, keep: true, d: 'Débloque la fraude bancaire.', req: { repPegre: 25, intelligence: 5 } }
   ];

@@ -256,6 +256,7 @@
 
     var res = sess.run(this) || {};
     if (res.m) this.log('<b>' + v.ico + ' ' + sess.n + '</b> — ' + res.m, res.t || 'good');
+    if (!this._q) NS.UI.toast(v.ico + ' ' + sess.n, res.t || 'good');
     this.afterAction(sess);
   };
 

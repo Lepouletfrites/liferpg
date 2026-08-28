@@ -221,6 +221,63 @@
     },
 
     {
+      id: 'dealherbe', ico: '🌿', n: 'Vendre de l’herbe', cat: 'petty', when: 'any',
+      d: 'Au coin de la rue, discrètement. Le plus bas de l’échelle, et le moins risqué.',
+      hours: 2, energy: 12, sentence: 6, req: { item: 'herbe' },
+      run: function (G) {
+        G.take('herbe', 1);
+        var ok = G.crimeRoll(66, { discretion: 3, charisme: 2, rue: 0.2 });
+        if (ok.win) {
+          var g = G.rnd(50, 90) + G.lvl('charisme') * 3;
+          G.dirtyCash(g, 'Vente d’herbe'); G.rep('rue', 2); G.rep('legale', -1);
+          G.heat(ok.heat); G.hist('crime'); G.hist('deal');
+          return { t: 'money', m: 'Quelques sachets écoulés sans se presser. <b>' + G.eur(g) + '</b>.' };
+        }
+        G.heat(15); G.rep('legale', -3);
+        G.arrestCheck('détention et usage de stupéfiants', 6);
+        return { t: 'bad', m: 'Une patrouille à pied tourne le coin au mauvais moment.' };
+      }
+    },
+
+    {
+      id: 'dealcachets', ico: '💊', n: 'Vendre des cachets', cat: 'mid', when: 'night',
+      d: 'Aux abords d’une soirée, d’un club, d’un festival. La demande ne manque jamais.',
+      hours: 3, energy: 18, sentence: 22, req: { item: 'cachets', repRue: 15 },
+      run: function (G) {
+        G.take('cachets', 1);
+        var ok = G.crimeRoll(56, { charisme: 4, discretion: 3, rue: 0.25 });
+        if (ok.win) {
+          var g = G.rnd(220, 380) + G.lvl('charisme') * 12;
+          G.dirtyCash(g, 'Vente de cachets'); G.rep('rue', 3); G.rep('pegre', 2); G.rep('legale', -3);
+          G.heat(ok.heat); G.xp('charisme', 8); G.hist('crime'); G.hist('deal');
+          return { t: 'money', m: 'La file d’attente devant les toilettes fait tout le travail. <b>' + G.eur(g) + '</b>.' };
+        }
+        G.heat(28); G.rep('legale', -6);
+        G.arrestCheck('trafic de stupéfiants', 22);
+        return { t: 'bad', m: 'Le videur travaillait pour la sécurité privée, pas pour vous. Il vous a repéré depuis un moment.' };
+      }
+    },
+
+    {
+      id: 'dealpoudre', ico: '🧂', n: 'Vendre de la poudre', cat: 'mid', when: 'any',
+      d: 'Une clientèle qui a les moyens, et qui préfère qu’on lui livre. La marge est la meilleure du trottoir.',
+      hours: 3, energy: 22, sentence: 45, req: { item: 'poudre', repPegre: 20 },
+      run: function (G) {
+        G.take('poudre', 1);
+        var ok = G.crimeRoll(48, { discretion: 4, charisme: 3, pegre: 0.3 });
+        if (ok.win) {
+          var g = G.rnd(480, 820) + G.repVal('pegre') * 10;
+          G.dirtyCash(g, 'Vente de poudre'); G.rep('pegre', 5); G.rep('rue', 2); G.rep('legale', -5);
+          G.heat(ok.heat); G.xp('discretion', 10); G.hist('crime'); G.hist('deal');
+          return { t: 'money', m: 'Trois livraisons, aucune trace. <b>' + G.eur(g) + '</b> — la meilleure marge du trottoir.' };
+        }
+        G.heat(45); G.rep('legale', -8);
+        G.arrestCheck('trafic de stupéfiants aggravé', 45);
+        return { t: 'bad', m: 'Un des « clients » portait un micro. Vous le comprenez une seconde trop tard.' };
+      }
+    },
+
+    {
       id: 'extort', ico: '💢', n: 'Racket de commerçants', cat: 'mid', when: 'day',
       d: 'Passer chaque semaine, ne rien menacer explicitement, tout laisser comprendre.',
       hours: 3, energy: 22, sentence: 35, req: { repPegre: 20, force: 4 },
@@ -385,7 +442,7 @@
       run: function (G) {
         var ok = G.crimeRoll(40, { discretion: 4, force: 3, intelligence: 3, pegre: 0.35, crew: ['bruno', 'nadia'], gear: { brouilleur: 14, voiture: 6 } });
         if (ok.win) {
-          var g = G.rnd(4000, 9000) + G.repVal('pegre') * 60;
+          var g = G.rnd(3000, 6000) + G.repVal('pegre') * 20;
           G.dirtyCash(g, 'Entrepôt'); G.rep('pegre', 14); G.rep('legale', -12);
           G.heat(ok.heat); G.xp('force', 14); G.xp('discretion', 14); G.hist('crime'); G.hist('bigscore');
           return { t: 'money', m: 'Trois palettes chargées en trente-huit minutes. <b>' + G.eur(g) + '</b> à partager — votre part est déjà là.' };
@@ -404,7 +461,7 @@
       run: function (G) {
         var ok = G.crimeRoll(36, { discretion: 4, force: 4, charisme: 2, pegre: 0.4, crew: ['bruno', 'nadia'], gear: { scooter: 8, voiture: 10 } });
         if (ok.win) {
-          var g = G.rnd(12000, 26000);
+          var g = G.rnd(4500, 9000);
           G.dirtyCash(g, 'Bijouterie'); G.rep('pegre', 20); G.rep('rue', 8); G.rep('legale', -20);
           G.heat(ok.heat); G.hist('crime'); G.hist('bigscore'); G.hist('armed');
           G.affFaction('legal', -14);
@@ -423,7 +480,7 @@
       run: function (G) {
         var ok = G.crimeRoll(38, { intelligence: 7, discretion: 3 });
         if (ok.win) {
-          var g = G.rnd(15000, 40000) + G.lvl('intelligence') * 1500;
+          var g = G.rnd(6000, 12000) + G.lvl('intelligence') * 400;
           G.dirtyCash(g, 'Virements détournés'); G.rep('pegre', 16); G.rep('legale', -10);
           G.heat(ok.heat * 0.6); G.xp('intelligence', 30); G.hist('crime'); G.hist('bigscore');
           return { t: 'money', m: 'Onze virements fractionnés vers quatre juridictions. <b>' + G.eur(g) + '</b> arrivent en cascade.' };
@@ -459,7 +516,7 @@
       run: function (G) {
         var ok = G.crimeRoll(30, { force: 4, discretion: 4, intelligence: 3, pegre: 0.45, crew: ['bruno', 'nadia'], gear: { brouilleur: 12, voiture: 10 } });
         if (ok.win) {
-          var g = G.rnd(35000, 90000);
+          var g = G.rnd(12000, 24000);
           G.dirtyCash(g, 'Fourgon'); G.rep('pegre', 25); G.rep('rue', 10); G.rep('legale', -25);
           G.heat(ok.heat); G.hist('crime'); G.hist('bigscore'); G.hist('armed');
           G.affFaction('legal', -18);
@@ -479,7 +536,7 @@
       run: function (G) {
         var ok = G.crimeRoll(34, { discretion: 7, intelligence: 4, pegre: 0.3, crew: ['nadia'], gear: { crochets: 8, gants: 6 } });
         if (ok.win) {
-          var g = G.rnd(18000, 45000) + G.lvl('discretion') * 900;
+          var g = G.rnd(7000, 14000) + G.lvl('discretion') * 250;
           G.dirtyCash(g, 'Coffre'); G.rep('pegre', 18); G.rep('legale', -10);
           G.heat(ok.heat * 0.75); G.xp('discretion', 30); G.hist('crime'); G.hist('bigscore');
           return { t: 'money', m: 'Six heures, deux forets cassés, et un déclic à 4 h 10. <b>' + G.eur(g) + '</b>.' };
@@ -498,7 +555,7 @@
         if (!G.spend(4000, 'Achat du lot')) return { t: 'bad', m: 'Il faut avancer 4 000 € pour le lot.' };
         var ok = G.crimeRoll(48, { charisme: 3, discretion: 3, pegre: 0.4 });
         if (ok.win) {
-          var g = G.rnd(12000, 26000);
+          var g = G.rnd(7000, 13000);
           G.dirtyCash(g, 'Trafic d’armes'); G.rep('pegre', 20); G.rep('legale', -15);
           G.heat(ok.heat); G.hist('crime'); G.hist('bigscore'); G.hist('armed');
           if (!G.has('arme') && G.chance(45)) G.give('arme', 1);
@@ -521,7 +578,7 @@
         if (!G.spend(15000, 'Enveloppe')) return { t: 'bad', m: 'Il faut 15 000 € pour ouvrir la conversation.' };
         var ok = G.crimeRoll(52, { charisme: 5, intelligence: 4, legale: 0.25 });
         if (ok.win) {
-          var g = G.rnd(60000, 140000);
+          var g = G.rnd(30000, 55000);
           G.cash(g, 'Marché public'); G.rep('legale', -6); G.rep('pegre', 10);
           G.heat(ok.heat * 0.5); G.xp('charisme', 20); G.hist('crime'); G.hist('bigscore');
           return { t: 'money', m: 'Le marché vous est attribué « au mieux-disant ». <b>' + G.eur(g) + '</b>, virés proprement.' };

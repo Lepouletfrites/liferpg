@@ -28,6 +28,7 @@
       hospital: null,       // { days, reason } pendant une hospitalisation
       rentDue: 0,           // jour de la prochaine échéance de loyer
       rentLate: 0,          // relances impayées en cours
+      rentOwed: 0,          // loyer accumulé, à régler manuellement depuis l'onglet Logement
       rentGrace: 0,         // délai obtenu à l'amiable
       stash: 0,             // argent sale planqué au logement
       washedWeek: 0,        // montant blanchi sur la semaine en cours
@@ -41,7 +42,11 @@
       shopHeat: {},         // vigilance accumulée par commerce après un vol
       crimeLast: {},        // dernier jour où chaque coup a été tenté (récidive)
       gang: null,           // { id, rank, missions, loyalty, since, failed }
-      biz: [],              // [{ id, lvl }]
+      biz: [],              // [{ uid, id, lvl, health, loc, staff }]
+      bizSeq: 0,            // compteur d'identifiants uniques d'entreprise
+      bizListings: [],      // offres de rachat à la Bourse du commerce
+      bizListingsDay: 0,
+      bizIdx: {},           // indice de marché par secteur (1 = neutre)
       bank: {
         open: false, checking: 0, savings: 0, score: 20,
         loan: null,         // { id, amount, rate, daily, due }
@@ -77,6 +82,7 @@
 
     D.NPCS.forEach(function (n) { st.npc[n.id] = 0; });
     D.ASSETS.forEach(function (a) { st.market.px[a.id] = a.start; st.market.hist[a.id] = [a.start]; });
+    D.BIZ.forEach(function (d) { st.bizIdx[d.id] = 1; });
 
     var org = D.ORIGINS.filter(function (o) { return o.id === originId; })[0] || D.ORIGINS[0];
     org.apply(st);
@@ -131,10 +137,18 @@
     if (!st.crimeLast) st.crimeLast = {};
     if (typeof st.rentDue !== 'number') st.rentDue = 0;
     if (typeof st.stash !== 'number') st.stash = 0;
+    if (typeof st.bizSeq !== 'number') st.bizSeq = 0;
+    if (!st.bizListings) st.bizListings = [];
+    if (typeof st.bizListingsDay !== 'number') st.bizListingsDay = 0;
+    if (!st.bizIdx) st.bizIdx = {};
+    D.BIZ.forEach(function (d) { if (typeof st.bizIdx[d.id] !== 'number') st.bizIdx[d.id] = 1; });
     if (st.biz) st.biz.forEach(function (b) {
       var d = D.BIZI[b.id];
       if (!b.name) b.name = d ? d.n : 'Entreprise';
       if (typeof b.health !== 'number') b.health = 100;
+      if (!b.loc || !D.BIZ_LOC[b.loc]) b.loc = 'correct';
+      if (typeof b.staff !== 'number') b.staff = 0;
+      if (!b.uid) { st.bizSeq += 1; b.uid = st.bizSeq; }
     });
     return st;
   };
@@ -182,13 +196,19 @@
     return S.rent(st) / per.days;
   };
 
+  /** Tolérance avant expulsion : plus l'échéance est espacée, moins on pardonne de retards */
+  S.rentMaxLate = function (st) {
+    var per = S.rentPer(st);
+    return per === 'month' ? 1 : (per === 'week' ? 2 : 3);
+  };
+
   /** Argent sale total : sur soi + planqué au logement */
   S.dirtyTotal = function (st) { return st.dirty + (st.stash || 0); };
 
   /** Capacité de planque, selon la sûreté du logement */
   S.stashCap = function (st) {
     var h = S.home(st);
-    return (h.safe || 0) * 2500;
+    return (h.safe || 0) * 2500 + (st.flags.stashBonus || 0);
   };
 
   /** Plafond hebdomadaire de blanchiment */
@@ -217,6 +237,7 @@
     if (st.inv.art) lux += 2;
     if (st.inv.rasoir) lux += 3;
     if (st.flags.groomed > st.day) lux += 8;
+    if (st.flags.styled > st.day) lux += 12;
     var v = st.gauges.hygiene * 0.55 + style * 0.45 + lux;
     if (st.gauges.sante < 30) v -= 8;
     return Math.max(0, Math.min(100, Math.round(v)));
@@ -237,11 +258,42 @@
     return 0.35 + 0.65 * Math.max(0, Math.min(100, h)) / 100;
   };
 
+  /** Emplacement choisi à la fondation */
+  S.bizLoc = function (b) { return D.BIZ_LOC[b.loc] || D.BIZ_LOC.correct; };
+
+  /** Indice de marché du secteur (1 = neutre) : fait fluctuer coût de création, revenu et valeur de revente */
+  S.bizIdxOf = function (st, id) { return (st.bizIdx && typeof st.bizIdx[id] === 'number') ? st.bizIdx[id] : 1; };
+
+  /** Effectif maximal embauchable, selon l'ampleur du secteur */
+  S.bizMaxStaff = function (d) { return Math.min(6, 1 + Math.floor(d.cost / 15000)); };
+
+  /** Coût d'embauche du prochain employé (croît avec l'effectif déjà en place) */
+  S.bizStaffHireCost = function (d, b) { return Math.round(d.cost * 0.12 * (1 + (b ? (b.staff || 0) : 0) * 0.5)); };
+
+  /** Salaire quotidien d'un employé */
+  S.bizStaffWage = function (d) { return Math.round(d.cost * 0.006 + 15); };
+
+  /** Bonus de revenu apporté par le personnel */
+  S.bizStaffMult = function (b) { return 1 + (b.staff || 0) * 0.09; };
+
+  /** Le personnel ralentit l'usure de l'activité quand elle est négligée */
+  S.bizDecayMult = function (b) { return Math.pow(0.85, b.staff || 0); };
+
+  /** Masse salariale quotidienne, toutes entreprises confondues */
+  S.bizWagesTotal = function (st) {
+    var total = 0;
+    st.biz.forEach(function (b) {
+      var d = D.BIZI[b.id];
+      if (d && b.staff) total += b.staff * S.bizStaffWage(d);
+    });
+    return Math.round(total);
+  };
+
   S.bizValue = function (st) {
     var v = 0;
     st.biz.forEach(function (b) {
       var d = D.BIZI[b.id];
-      if (d) v += d.cost * b.lvl * 0.85 * S.bizHealthFactor(b);
+      if (d) v += d.cost * S.bizLoc(b).costMult * b.lvl * 0.85 * S.bizHealthFactor(b) * S.bizIdxOf(st, b.id);
     });
     return Math.round(v);
   };
@@ -319,7 +371,7 @@
     var total = 0, mult = S.bizMult(st);
     st.biz.forEach(function (b) {
       var d = D.BIZI[b.id];
-      if (d && d.legal !== false) total += d.rev * b.lvl * mult * S.bizHealthFactor(b);
+      if (d && d.legal !== false) total += d.rev * b.lvl * mult * S.bizHealthFactor(b) * S.bizLoc(b).revMult * S.bizStaffMult(b) * S.bizIdxOf(st, b.id);
     });
     return Math.round(total);
   };
@@ -329,7 +381,7 @@
     var total = 0, mult = S.bizMult(st);
     st.biz.forEach(function (b) {
       var d = D.BIZI[b.id];
-      if (d && d.legal === false) total += d.rev * b.lvl * mult * S.bizHealthFactor(b);
+      if (d && d.legal === false) total += d.rev * b.lvl * mult * S.bizHealthFactor(b) * S.bizLoc(b).revMult * S.bizStaffMult(b) * S.bizIdxOf(st, b.id);
     });
     return Math.round(total);
   };

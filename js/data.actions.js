@@ -190,7 +190,7 @@
     },
 
     {
-      id: 'jobcenter', ico: '🏛️', n: 'Agence pour l’emploi', accent: 'var(--info)', when: 'day',
+      id: 'jobcenter', ico: '🏛️', n: 'Agence pour l’emploi', accent: 'var(--info)', when: 'day', tab: 'travail',
       d: 'Un conseiller, un CV, des offres. Facilite les entretiens pendant plusieurs jours.',
       hours: 3, energy: 12, req: { addr: true, hyg: 35 },
       run: function (G) {
@@ -440,7 +440,7 @@
     {
       id: 'nightsleeprough', ico: '🌡️', n: 'Chercher un abri de nuit', accent: 'var(--info)', when: 'night',
       d: 'Parking souterrain, hall d’immeuble, laverie ouverte. Réduit fortement les risques de la nuit.',
-      hours: 2, energy: 8, req: {},
+      hours: 2, energy: 8, req: { outdoor: true },
       run: function (G) {
         var p = 45 + G.lvl('discretion') * 6 + G.repVal('rue') * 0.3;
         if (G.chance(p)) {

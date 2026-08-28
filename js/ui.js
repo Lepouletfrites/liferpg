@@ -290,6 +290,7 @@
     var now = [], later = [], risky = [], faded = [];
     D.ACTIONS.forEach(function (a) {
       if (a.atHome) return;                       // ces actions vivent dans l'onglet Logement
+      if (a.tab && a.tab !== 'survie') return;     // ces actions vivent dans un autre onglet
       var w = a.when || 'day';
       var fits = (w === 'any') || (w === 'night') === night;
       if (!fits) { later.push(a); return; }
@@ -544,6 +545,9 @@
           'et un <b>casier</b> compatible. En échange : un revenu stable et de la réputation légale.'));
       }
 
+      h.push(sectionTitle('Préparer sa recherche'));
+      h.push('<div class="cards">' + actionCard(D.ACTION.jobcenter) + '</div>');
+
       h.push(cardsWithLocked(D.JOBS, function (jb) {
         if (s.job && s.job.id === jb.id) return null;
         var max = jb.casierMax === undefined ? 99 : jb.casierMax;
@@ -579,20 +583,36 @@
           (S.bizDirtyIncome(s) ? kv('Revenu quotidien sale', eur(S.bizDirtyIncome(s)), 'v-dirty') : '') +
           (S.washCap(s) ? kv('Capacité de blanchiment / jour', eur(S.washCap(s))) : '') +
           (s.flags.network ? kv('Réseau d’Alex Vidal', '+30 %', 'v-good') : '') + '</div>');
+        if (S.bizWagesTotal(s)) h.push(hint('🧑‍💼 Masse salariale : ' + eur(S.bizWagesTotal(s)) + ' / jour, prélevés automatiquement. ' +
+          'Si vous ne pouvez pas payer, un employé démissionne.'));
         h.push(hint('Une entreprise qu’on néglige perd en <b>santé</b> et rapporte de moins en moins, ' +
-          'jusqu’à la faillite pure et simple. « Développer » monte le niveau ; « Reprendre en main » sauve une activité fragile.'));
+          'jusqu’à la faillite pure et simple. « Travailler » rapporte tout de suite (utile sans personnel) ; ' +
+          '« Développer » monte le niveau ; « Reprendre en main » sauve une activité fragile ; ' +
+          'le <b>personnel</b> ralentit l’usure quand vous êtes ailleurs, mais coûte un salaire chaque jour.'));
         s.biz.forEach(function (b) {
           var d = D.BIZI[b.id];
+          var loc = S.bizLoc(b);
+          var idx = S.bizIdxOf(s, b.id);
           var up = G.bizUpCost(b);
           var manageCost = G.bizManageCost(b);
+          var workPay = G.bizWorkPay(b);
           var maxed = b.lvl >= d.maxLvl;
           var health = b.health === undefined ? 100 : b.health;
           var hCls = health < 25 ? 'v-bad' : (health < 60 ? '' : 'v-good');
           var fillColor = health < 25 ? 'var(--danger)' : (health < 60 ? 'var(--gold)' : 'var(--good)');
-          var rev = Math.round(d.rev * b.lvl * S.bizMult(s) * S.bizHealthFactor(b));
+          var maxStaff = S.bizMaxStaff(d);
+          var staff = b.staff || 0;
+          var wage = S.bizStaffWage(d);
+          var wagesTotal = staff * wage;
+          var hireCost = S.bizStaffHireCost(d, b);
+          var rev = Math.round(d.rev * b.lvl * S.bizMult(s) * S.bizHealthFactor(b) * loc.revMult * S.bizStaffMult(b) * idx);
+          var idxCls = idx > 1.08 ? 'v-good' : (idx < 0.92 ? 'v-bad' : '');
           h.push('<div class="panel mt"><div class="panel__hd"><div class="panel__t">' + d.ico + ' ' + G.bizName(b) + '</div>' +
             '<span class="tag">Niv. ' + b.lvl + '/' + d.maxLvl + '</span></div>' +
             kv('Secteur', d.n) +
+            kv('Emplacement', loc.ico + ' ' + loc.n) +
+            kv('Indice du secteur', Math.round(idx * 100) + ' %', idxCls) +
+            kv('Personnel', staff + ' / ' + maxStaff + (staff ? ' · salaires ' + eur(wagesTotal) + '/j' : '')) +
             kv('Revenu quotidien', eur(rev) + (d.legal === false ? ' (sale)' : ''), d.legal === false ? 'v-dirty' : 'v-good') +
             kv('Santé de l’activité', Math.round(health) + ' / 100', hCls) +
             '<div class="stat__bar mt"><div class="stat__fill" style="width:' + Math.max(0, Math.min(100, health)) +
@@ -600,28 +620,24 @@
             (health < 40 ? '<p class="hint">⚠️ En dessous de zéro, l’activité ferme et tout est perdu.</p>' : '') +
             '</div>');
           h.push('<div class="btnRow">' +
-            '<button class="btn btn--gold btn--sm" data-act="bizup" data-arg="' + b.id + '">🔧 ' +
+            '<button class="btn btn--gold btn--sm" data-act="bizwork" data-arg="' + b.uid + '">💼 Travailler · ' + eur(workPay) + '</button>' +
+            '</div>');
+          h.push('<div class="btnRow">' +
+            '<button class="btn btn--ghost btn--sm" data-act="bizup" data-arg="' + b.uid + '">🔧 ' +
             (maxed ? 'Niveau maximum' : 'Développer · ' + eur(up)) + '</button>' +
-            '<button class="btn btn--ghost btn--sm" data-act="bizmanage" data-arg="' + b.id + '">🩺 Reprendre en main · ' + eur(manageCost) + '</button>' +
+            '<button class="btn btn--ghost btn--sm" data-act="bizmanage" data-arg="' + b.uid + '">🩺 Reprendre en main · ' + eur(manageCost) + '</button>' +
+            '</div>');
+          h.push('<div class="btnRow">' +
+            '<button class="btn btn--ghost btn--sm" data-act="bizhire" data-arg="' + b.uid + '">🧑‍💼 ' +
+            (staff >= maxStaff ? 'Effectif complet' : 'Embaucher · ' + eur(hireCost)) + '</button>' +
+            (staff ? '<button class="btn btn--ghost btn--sm" data-act="bizfire" data-arg="' + b.uid + '">🚪 Licencier</button>' : '') +
             '</div>');
         });
         h.push('<div class="btnRow"><button class="btn btn--ghost btn--sm" data-act="bizsell">💱 Céder une entreprise</button></div>');
       }
 
-      h.push(sectionTitle('Fonder une entreprise'));
-      h.push(hint('C’est le seul moteur capable de vous mener au million : vos entreprises produisent <b>chaque nuit</b>, même quand vous dormez. ' +
-        'Choisissez un secteur, donnez un nom à votre affaire — les frais de création varient fortement selon le secteur.'));
-      h.push(cardsWithLocked(D.BIZ, function (d) {
-        if (G.ownBiz(d.id)) return null;
-        var lock = G.checkReq(d.req) || (s.money < d.cost ? 'Capital de ' + eur(d.cost) + ' requis' : null);
-        return {
-          ico: d.ico, title: d.n, desc: d.d, accent: d.legal === false ? 'var(--danger)' : 'var(--gold)',
-          costs: [cost('⏱ 3 h', 'cost--time'), cost(eur(d.cost), 'cost--price'),
-          cost('≈ ' + eur(d.rev) + '/jour', d.legal === false ? 'cost--risk' : 'cost--pay'),
-          d.wash ? cost('🧼 Blanchiment') : null],
-          lock: lock, act: 'bizsector', arg: d.id
-        };
-      }, 'Hors de portée pour l’instant'));
+      h.push(hint('Pour <b>fonder</b>, <b>racheter</b> ou <b>céder</b> une entreprise, direction la 🏛️ Bourse du commerce, dans ' +
+        '<b>Ville → Lieux</b>.'));
     }
 
     return h.join('');
@@ -1020,6 +1036,30 @@
   /* =========================================================
      Onglet SOCIAL
      ========================================================= */
+  function npcCard(n, s) {
+    var lock = G.npcLock(n);
+    if (lock) {
+      return '<div class="npc is-locked"><span class="npc__av">❔</span><span class="npc__b">' +
+        '<span class="npc__n">Inconnu</span><span class="npc__r">' + esc(lock) + '</span></span></div>';
+    }
+    var a = Math.round(s.npc[n.id] || 0);
+    var rel = D.relation(a);
+    var pos = (a + 100) / 2;
+    var hasQ = G.hasQuest(n.id);
+    var idle = s.npcMet[n.id] ? s.day - s.npcMet[n.id] : null;
+    var idleTxt = idle === null ? 'jamais croisé' : (idle === 0 ? 'vu aujourd’hui' : 'vu il y a ' + idle + ' j');
+    return '<button class="npc" data-act="npc" data-arg="' + n.id + '">' +
+      '<span class="npc__av">' + n.ico + '</span>' +
+      '<span class="npc__b">' +
+      '<span class="npc__n">' + n.n + (hasQ ? ' <span class="badge badge--quest">🎯</span>' : '') +
+      '<span class="tag" style="color:' + rel.c + '">' + rel.ico + ' ' + a + '</span></span>' +
+      '<span class="npc__r">' + n.role + ' · <em style="color:' + rel.c + '">' + rel.n + '</em>' +
+      ' · <span class="' + (idle !== null && idle > (n.decay ? 8 : 999) ? 'v-bad' : '') + '">' + idleTxt + '</span></span>' +
+      '<span class="npc__aff"><span class="npc__zero"></span>' +
+      '<span class="npc__affF" style="width:' + pos + '%;background:' + (a < 0 ? 'var(--danger)' : 'linear-gradient(90deg,#f0559b,#f7a1c4)') + '"></span></span>' +
+      '</span><span class="card__go">›</span></button>';
+  }
+
   function renderSocial() {
     var s = G.s, h = [];
     h.push(hint('Les gens que vous croisez valent plus que l’argent : ils ouvrent des portes qu’aucune somme ne débloque. ' +
@@ -1038,30 +1078,24 @@
       }).join('') + '</div>');
     }
 
+    /* Votre cercle : ceux avec qui une vraie relation existe déjà, peu importe la faction —
+       la liste se construit au fil de la partie plutôt que d'afficher un catalogue figé. */
+    var circle = D.NPCS.filter(function (n) {
+      return !G.npcLock(n) && (s.npcMet[n.id] || Math.round(s.npc[n.id] || 0) !== 0);
+    }).sort(function (a, b) { return (s.npc[b.id] || 0) - (s.npc[a.id] || 0); });
+
+    if (circle.length) {
+      h.push(sectionTitle('👤 Votre cercle'));
+      h.push('<div class="cards">' + circle.map(function (n) { return npcCard(n, s); }).join('') + '</div>');
+    }
+
+    var circleIds = circle.map(function (n) { return n.id; });
     D.FACTIONS.forEach(function (f) {
-      var list = D.NPCS.filter(function (n) { return n.faction === f.id; });
-      h.push(sectionTitle(f.ico + ' ' + f.n));
+      var list = D.NPCS.filter(function (n) { return n.faction === f.id && circleIds.indexOf(n.id) === -1; });
+      if (!list.length) return;
+      h.push(sectionTitle(f.ico + ' ' + f.n + (circle.length ? ' · à découvrir' : '')));
       h.push(hint(f.d));
-      h.push('<div class="cards">' + list.map(function (n) {
-        var lock = G.npcLock(n);
-        if (lock) {
-          return '<div class="npc is-locked"><span class="npc__av">❔</span><span class="npc__b">' +
-            '<span class="npc__n">Inconnu</span><span class="npc__r">' + esc(lock) + '</span></span></div>';
-        }
-        var a = Math.round(s.npc[n.id] || 0);
-        var rel = D.relation(a);
-        var pos = (a + 100) / 2;
-        var hasQ = G.hasQuest(n.id);
-        return '<button class="npc" data-act="npc" data-arg="' + n.id + '">' +
-          '<span class="npc__av">' + n.ico + '</span>' +
-          '<span class="npc__b">' +
-          '<span class="npc__n">' + n.n + (hasQ ? ' <span class="badge badge--quest">🎯</span>' : '') +
-          '<span class="tag" style="color:' + rel.c + '">' + rel.ico + ' ' + a + '</span></span>' +
-          '<span class="npc__r">' + n.role + ' · <em style="color:' + rel.c + '">' + rel.n + '</em></span>' +
-          '<span class="npc__aff"><span class="npc__zero"></span>' +
-          '<span class="npc__affF" style="width:' + pos + '%;background:' + (a < 0 ? 'var(--danger)' : 'linear-gradient(90deg,#f0559b,#f7a1c4)') + '"></span></span>' +
-          '</span><span class="card__go">›</span></button>';
-      }).join('') + '</div>');
+      h.push('<div class="cards">' + list.map(function (n) { return npcCard(n, s); }).join('') + '</div>');
     });
     return h.join('');
   }
@@ -1304,6 +1338,7 @@
       h.push(hint(v.d));
       var vlock = G.venueLock(v);
       if (vlock) { h.push('<div class="banner banner--warn">🔒 ' + esc(vlock) + '</div>'); return h.join(''); }
+      if (v.market) { h.push(renderBourseBody()); return h.join(''); }
       h.push(cardsWithLocked(v.sessions, function (sess) {
         var lk = G.sessionLock(v, sess);
         return {
@@ -1333,12 +1368,69 @@
         };
       }
       var lk = G.venueLock(v);
+      if (v.market) {
+        return {
+          ico: v.ico, title: v.n, desc: v.d, accent: 'var(--gold)',
+          costs: [cost(G.s.biz.length + ' possédée' + (G.s.biz.length > 1 ? 's' : ''), 'cost--pay'), cost(D.BIZ.length + ' secteurs', 'cost--time')],
+          lock: lk, act: 'venueopen', arg: v.id
+        };
+      }
       return {
         ico: v.ico, title: v.n, desc: v.d, accent: 'var(--good)',
         costs: [cost(v.sessions.length + ' formules', 'cost--time')],
         lock: lk, act: 'venueopen', arg: v.id
       };
     }, 'Fermé pour l’instant'));
+    return h.join('');
+  }
+
+  /** Bourse du commerce : fonder, racheter ou céder une entreprise */
+  function renderBourseBody() {
+    var s = G.s, h = [];
+    if (!s.bizListings.length || s.day - (s.bizListingsDay || 0) >= 7) G.refreshBizListings();
+
+    h.push(sectionTitle('Fonder une entreprise'));
+    h.push(hint('C’est le seul moteur capable de vous mener au million : vos entreprises produisent <b>chaque nuit</b>, même quand vous dormez. ' +
+      'Choisissez un secteur, un emplacement et un nom. Le capital de départ suit l’<b>indice du secteur</b> : fonder en pleine euphorie coûte ' +
+      'plus cher — et vaudra plus cher à la revente. Posséder déjà un secteur permet d’y ouvrir une <b>filiale</b> moins chère.'));
+    h.push(cardsWithLocked(D.BIZ, function (d) {
+      var branch = G.ownsSector(d.id);
+      var minCost = G.bizCreationCost(d, D.BIZ_LOCS[0], branch);
+      var lock = G.checkReq(d.req) || (s.money < minCost ? 'Capital dès ' + eur(minCost) + ' requis' : null);
+      return {
+        ico: d.ico, title: d.n, desc: d.d, accent: d.legal === false ? 'var(--danger)' : 'var(--gold)',
+        badge: branch ? '<span class="badge">Filiale</span>' : '',
+        costs: [cost('⏱ 3 h', 'cost--time'), cost('dès ' + eur(minCost), 'cost--price'),
+        cost('≈ ' + eur(d.rev) + '/jour', d.legal === false ? 'cost--risk' : 'cost--pay'),
+        d.wash ? cost('🧼 Blanchiment') : null],
+        lock: lock, act: 'bizsector', arg: d.id
+      };
+    }, 'Hors de portée pour l’instant'));
+
+    h.push(sectionTitle('Racheter une entreprise existante'));
+    h.push(hint('Plus cher que de partir de zéro, mais déjà en marche : niveau, santé et emplacement sont fixés d’avance. ' +
+      'L’offre se renouvelle chaque semaine.'));
+    if (!s.bizListings.length) {
+      h.push(empty('🤝', 'Rien à racheter cette semaine. Repassez plus tard.'));
+    } else {
+      h.push('<div class="cards">' + s.bizListings.map(function (l, i) {
+        var d = D.BIZI[l.id];
+        var loc = D.BIZ_LOC[l.loc];
+        var lock = G.checkReq(d.req) || (s.money < l.price ? 'Capital de ' + eur(l.price) + ' requis' : null);
+        return card({
+          ico: d.ico, title: d.n + ' · Niv. ' + l.lvl,
+          desc: loc.ico + ' ' + loc.n + ' · Santé ' + l.health + '/100' + (d.legal === false ? ' · activité illégale' : ''),
+          accent: d.legal === false ? 'var(--danger)' : 'var(--gold)',
+          costs: [cost(eur(l.price), 'cost--price'), cost('⏱ 2 h', 'cost--time')],
+          lock: lock, act: 'bizbuylisting', arg: i
+        });
+      }).join('') + '</div>');
+    }
+
+    if (s.biz.length) {
+      h.push(sectionTitle('Céder une entreprise'));
+      h.push('<div class="btnRow"><button class="btn btn--ghost btn--sm" data-act="bizsell">💱 Céder une entreprise</button></div>');
+    }
     return h.join('');
   }
 
@@ -1359,12 +1451,14 @@
     var rent = S.rent(s);
     var due = Math.max(0, (s.rentDue || 0) - s.day);
 
+    var maxLate = S.rentMaxLate(s);
     h.push(sectionTitle('Votre logement'));
     h.push('<div class="panel"><div class="panel__hd"><div class="panel__t">' + cur.ico + ' ' + cur.name + '</div>' +
       '<span class="tag">' + (rent ? eur(rent) + ' ' + per.short : 'Gratuit') + '</span></div>' +
       (rent ? kv('Prochaine échéance', due === 0 ? 'aujourd’hui' : 'dans ' + due + ' j', due <= 1 ? 'v-bad' : '') : '') +
       (rent ? kv('Coût ramené au jour', eur(S.rentPerDay(s)) + ' / jour') : '') +
-      (s.rentLate ? kv('⚠️ Relances impayées', s.rentLate + ' / 3', 'v-bad') : '') +
+      (s.rentOwed ? kv('💶 Loyer dû', eur(s.rentOwed), 'v-bad') : '') +
+      (s.rentLate ? kv('⚠️ Retards', s.rentLate + ' / ' + maxLate, 'v-bad') : '') +
       kv('Qualité du sommeil', '+' + cur.sleep + ' énergie') +
       kv('Douche', cur.shower ? 'Oui' : 'Non', cur.shower ? 'v-good' : 'v-bad') +
       kv('Adresse administrative', cur.addr ? 'Oui' : 'Non', cur.addr ? 'v-good' : 'v-bad') +
@@ -1373,9 +1467,19 @@
       kv('Pression policière retirée / nuit', '−' + (7 + (cur.cool || 0))) +
       '</div>');
 
+    if (s.rentOwed) {
+      h.push('<div class="cards">' + card({
+        ico: '💶', title: 'Payer le loyer', desc: 'Régler ce qui est dû, en une fois.',
+        accent: 'var(--good)',
+        costs: [cost(eur(s.rentOwed), 'cost--price')],
+        lock: G.canPay(s.rentOwed) ? null : 'Il manque ' + eur(s.rentOwed - S.spendable(s)),
+        act: 'payrent'
+      }) + '</div>');
+    }
+
     if (s.rentLate) {
-      h.push('<div class="banner banner--warn"><b>Loyer impayé.</b> À la troisième relance vous êtes expulsé. ' +
-        'Vous pouvez tenter d’obtenir un délai — le bailleur écoutera d’autant mieux que vous savez parler.</div>');
+      h.push('<div class="banner banner--warn"><b>Loyer en retard.</b> Au-delà de ' + maxLate + ' relance' + (maxLate > 1 ? 's' : '') +
+        ' vous êtes expulsé. Vous pouvez tenter d’obtenir un délai — le bailleur écoutera d’autant mieux que vous savez parler.</div>');
       h.push('<div class="cards">' + card({
         ico: '🤝', title: 'Négocier un délai',
         desc: 'Expliquer, promettre, gagner quelques jours. Se joue au charisme.',
@@ -1536,7 +1640,7 @@
         return '<div class="stat">' +
           '<div class="stat__hd"><span>' + st.ico + ' ' + st.label + '</span><span class="stat__lvl">NIV ' + v.lvl + '</span></div>' +
           bar(pct) +
-          '<div class="stat__xp">' + (v.lvl >= D.MAX_LVL ? 'Maîtrise complète' : v.xp + ' / ' + need + ' XP') + '</div>' +
+          '<div class="stat__xp">' + (v.lvl >= D.MAX_LVL ? 'Maîtrise complète' : Math.round(v.xp) + ' / ' + need + ' XP') + '</div>' +
           '<div class="stat__d">' + st.desc + '</div></div>';
       }).join('') + '</div>');
 
@@ -1575,6 +1679,21 @@
         kv('Argent blanchi', eur(s.totals.laundered)) +
         kv('Origine', (D.ORIGINS.filter(function (o) { return o.id === s.origin; })[0] || {}).n) +
         '</div>');
+
+      if (NS.AUDIO) {
+        var ap = NS.AUDIO.prefs;
+        h.push(sectionTitle('🎧 Ambiance sonore'));
+        h.push('<div class="panel">' +
+          kv('Musique', ap.on ? 'Activée' : 'Coupée', ap.on ? 'v-good' : '') +
+          kv('Volume', Math.round(ap.vol * 100) + ' %') +
+          '</div>');
+        h.push('<div class="btnRow">' +
+          '<button class="btn ' + (ap.on ? 'btn--gold' : 'btn--ghost') + ' btn--sm" data-act="audiotoggle">' +
+          (ap.on ? '🔇 Couper le son' : '🔊 Activer le son') + '</button>' +
+          [0.25, 0.5, 0.75, 1].map(function (v) {
+            return '<button class="btn btn--ghost btn--sm" data-act="audiovol" data-arg="' + v + '">' + Math.round(v * 100) + ' %</button>';
+          }).join('') + '</div>');
+      }
 
       h.push(sectionTitle('Partie'));
       h.push('<div class="btnRow"><button class="btn btn--ghost" data-act="save">💾 Sauvegarder</button>' +
@@ -1644,6 +1763,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (b) {
       b.classList.toggle('is-active', b.dataset.tab === tab);
     });
+    if (NS.AUDIO) NS.AUDIO.sync(G.s);
   };
 
   UI.setTab = function (t) {
@@ -1656,6 +1776,8 @@
      Toasts
      ========================================================= */
   var toastCount = 0;
+  var TOAST_SFX = { good: 'success', xp: 'success', money: 'cash', dirty: 'cash', bad: 'fail' };
+
   UI.toast = function (msg, type) {
     if (toastCount > 4) return;
     var el = document.createElement('div');
@@ -1667,6 +1789,7 @@
       el.classList.add('out');
       setTimeout(function () { el.remove(); toastCount--; }, 300);
     }, 1900);
+    if (NS.AUDIO && TOAST_SFX[type]) NS.AUDIO.sfx(TOAST_SFX[type]);
   };
 
   /**
@@ -2056,25 +2179,47 @@
     UI.modal({ ico: '🏦', title: title, body: '<p>Disponible : <b>' + eur(max) + '</b></p>', actions: acts });
   }
 
-  /** Choix du nom avant de fonder une entreprise dans un secteur donné */
+  /** Étape 1 : choix de l'emplacement avant de fonder une entreprise dans un secteur donné */
   function bizNamePrompt(d) {
+    var branch = G.ownsSector(d.id);
     UI.modal({
-      ico: d.ico, title: 'Fonder dans : ' + d.n,
-      body: '<p>' + d.d + '</p>' +
-        '<div class="panel mt">' +
-        kv('Capital requis', eur(d.cost)) +
-        kv('Revenu de départ', '≈ ' + eur(d.rev) + ' / jour' + (d.legal === false ? ' (sale)' : '')) +
+      ico: d.ico, title: (branch ? 'Ouvrir une filiale : ' : 'Où installer : ') + d.n + ' ?',
+      body: '<p>' + d.d + '</p><p class="hint">L’emplacement change le capital de départ, le rendement, et — pour une activité illégale — le risque.' +
+        (branch ? ' Une filiale coûte 30 % de moins : vous avez déjà l’enseigne.' : '') + '</p>',
+      actions: D.BIZ_LOCS.map(function (loc) {
+        var cost = G.bizCreationCost(d, loc, branch);
+        var rev = Math.round(d.rev * loc.revMult);
+        return {
+          l: loc.ico + ' ' + loc.n + ' — ' + eur(cost),
+          h: loc.d + ' · ≈ ' + eur(rev) + '/j' + (d.legal === false ? ' · risque x' + loc.riskMult : ''),
+          fn: function () { bizFoundPrompt(d, loc, branch); }
+        };
+      }).concat([{ l: 'Annuler', h: '', fn: null }])
+    });
+  }
+
+  /** Étape 2 : nom de l'entreprise, une fois l'emplacement choisi */
+  function bizFoundPrompt(d, loc, branch) {
+    var cost = G.bizCreationCost(d, loc, branch);
+    var rev = Math.round(d.rev * loc.revMult);
+    UI.modal({
+      ico: d.ico, title: (branch ? 'Filiale : ' : 'Fonder dans : ') + d.n,
+      body: '<div class="panel mt">' +
+        kv('Emplacement', loc.ico + ' ' + loc.n) +
+        kv('Capital requis', eur(cost) + (branch ? ' (filiale, −30 %)' : '')) +
+        kv('Revenu de départ', '≈ ' + eur(rev) + ' / jour' + (d.legal === false ? ' (sale)' : '')) +
         (d.wash ? kv('Blanchiment offert', eur(d.wash) + ' / jour de capacité') : '') +
         '</div>' +
         '<label class="field"><span>Nom de l’entreprise</span>' +
         '<input type="text" id="bizNameInput" maxlength="28" placeholder="Ex. ' + esc(d.n) + '" autocomplete="off"></label>',
       actions: [
         {
-          l: '🚀 Fonder pour ' + eur(d.cost), h: '3 h', fn: function () {
+          l: '🚀 Fonder pour ' + eur(cost), h: '3 h', fn: function () {
             var el = document.getElementById('bizNameInput');
-            G.buyBiz(d.id, el ? el.value : '');
+            G.buyBiz(d.id, el ? el.value : '', loc.id);
           }
         },
+        { l: '← Changer d’emplacement', h: '', fn: function () { bizNamePrompt(d); } },
         { l: 'Annuler', h: '', fn: null }
       ]
     });
@@ -2118,13 +2263,17 @@
       });
     },
     bizsector: function (arg) { bizNamePrompt(D.BIZI[arg]); },
-    bizup: function (arg) { G.upgradeBiz(arg); },
-    bizmanage: function (arg) { G.manageBiz(arg); },
+    bizup: function (arg) { G.upgradeBiz(parseInt(arg, 10)); },
+    bizmanage: function (arg) { G.manageBiz(parseInt(arg, 10)); },
+    bizwork: function (arg) { G.workBiz(parseInt(arg, 10)); },
+    bizhire: function (arg) { G.hireStaff(parseInt(arg, 10)); },
+    bizfire: function (arg) { G.fireStaff(parseInt(arg, 10)); },
+    bizbuylisting: function (arg) { G.buyBizListing(parseInt(arg, 10)); },
     bizsell: function () {
       var acts = G.s.biz.map(function (b) {
         var d = D.BIZI[b.id];
-        var price = Math.round(d.cost * b.lvl * 0.7 * S.bizHealthFactor(b));
-        return { l: d.ico + ' ' + G.bizName(b), h: 'Céder pour ' + eur(price), fn: function () { G.sellBiz(b.id); } };
+        var price = Math.round(d.cost * S.bizLoc(b).costMult * b.lvl * 0.7 * S.bizHealthFactor(b) * S.bizIdxOf(G.s, b.id));
+        return { l: d.ico + ' ' + G.bizName(b), h: 'Céder pour ' + eur(price), fn: function () { G.sellBiz(b.uid); } };
       });
       acts.push({ l: 'Annuler', h: '', fn: null });
       UI.modal({ ico: '💱', title: 'Céder une entreprise', body: '<p>La cession rapporte 70 % du coût cumulé, ajusté à la santé de l’activité.</p>', actions: acts });
@@ -2205,6 +2354,7 @@
     venueclose: function () { openVenue = null; $('screen').scrollTop = 0; UI.refresh(); },
     session: function (arg) { var p = arg.split('|'); G.doSession(p[0], p[1]); },
     negorent: function () { G.negotiateRent(); },
+    payrent: function () { G.payRent(); },
     stashin: function () {
       var max = Math.min(G.s.dirty, S.stashCap(G.s) - (G.s.stash || 0));
       if (max < 1) { UI.toast('Aucune place dans la planque', 'bad'); return; }
@@ -2226,6 +2376,8 @@
       UI.modal({ ico: g.ico, title: g.label, body: '<p>' + g.d + '</p><div class="panel mt">' + kv('Niveau actuel', Math.round(G.s.gauges[arg]) + ' / 100') + '</div>', actions: [{ l: 'Fermer', h: '', fn: null }] });
     },
     sub: function (arg) { var p = arg.split(':'); sub[p[0]] = p[1]; if (p[0] === 'profil' && p[1] !== 'inv') sellMode = false; $('screen').scrollTop = 0; UI.refresh(); },
+    audiotoggle: function () { if (NS.AUDIO) { NS.AUDIO.setOn(!NS.AUDIO.prefs.on); UI.refresh(); } },
+    audiovol: function (arg) { if (NS.AUDIO) { NS.AUDIO.setVolume(parseFloat(arg)); UI.refresh(); } },
     save: function () { NS.S.save(G.s); UI.toast('💾 Partie sauvegardée', 'good'); },
     reset: function () {
       UI.modal({

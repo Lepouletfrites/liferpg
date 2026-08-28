@@ -43,7 +43,7 @@
   G.contraband = function () {
     var s = this.s;
     var items = [];
-    ['arme', 'came', 'crochets', 'brouilleur', 'skimmer', 'contrefacon', 'faux'].forEach(function (id) {
+    ['arme', 'came', 'herbe', 'cachets', 'poudre', 'crochets', 'brouilleur', 'skimmer', 'contrefacon', 'faux'].forEach(function (id) {
       if (s.inv[id]) items.push(D.ITEM[id]);
     });
     return { dirty: s.dirty, items: items };
@@ -322,6 +322,10 @@
     var pContest = clamp(18 + this.lvl('charisme') * 3 + this.lvl('intelligence') * 3 +
       (s.flags.lawyer ? 22 : 0) + (s.flags.shield ? 18 : 0) - s.casier * 4, 5, 92);
 
+    /* Simple usager plutôt que trafiquant établi : le tribunal peut orienter vers les soins. */
+    var isDrug = reason.indexOf('stupéfiants') !== -1;
+    var careAvailable = isDrug && s.casier < 4;
+
     NS.UI.modal({
       ico: '👨‍⚖️', title: 'Comparution immédiate',
       dismissible: false,
@@ -333,6 +337,7 @@
         (s.flags.lawyer ? 'Oui — peine réduite' : 'Non') + '</b></div>' +
         '<div class="kv"><span>Chances de relaxe si vous contestez</span><b>' + Math.round(pContest) + ' %</b></div>' +
         '<div class="kv"><span>Caution pour rester libre</span><b>' + this.eur(bail) + '</b></div>' +
+        (careAvailable ? '<div class="kv"><span>Orientation vers les soins</span><b class="v-good">Possible — premières infractions</b></div>' : '') +
         '</div>',
       actions: [
         {
@@ -369,8 +374,20 @@
             NS.UI.flash('💰 Libre sous caution', 'good');
             NS.UI.refresh(); S.save(s);
           }
-        }
-      ]
+        },
+        careAvailable ? {
+          l: '🩺 Demander une injonction de soins', h: 'Évite la prison, mais laisse une mention',
+          fn: function () {
+            s.casier += 1;
+            self.add('moral', -6);
+            self.flag('addict', Math.max(0, (self.flags('addict') || 0) - 2));
+            self.rep('legale', 2);
+            self.log('<b>Injonction de soins.</b> Le tribunal ordonne un suivi médical plutôt qu’une peine ferme.', 'good');
+            NS.UI.flash('🩺 Injonction de soins', 'good');
+            NS.UI.refresh(); S.save(s);
+          }
+        } : null
+      ].filter(Boolean)
     });
   };
 

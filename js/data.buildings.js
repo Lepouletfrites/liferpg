@@ -241,6 +241,137 @@
           }
         }
       ]
+    },
+
+    {
+      id: 'beaute', n: 'Institut de beauté', ico: '💅', when: 'day',
+      d: 'Ongles, peau, coupe. Ici, on ne soigne pas le corps — on soigne l’image qu’il renvoie.',
+      req: { hyg: 25 },
+      sessions: [
+        {
+          id: 'retouche', n: 'Retouche rapide', ico: '💇', hours: 1, energy: 0, price: 20,
+          d: 'Un coup de peigne, du fond de teint, cinq minutes de sourire forcé.',
+          run: function (G) {
+            G.flag('styled', G.day() + 5); G.add('moral', 4);
+            return { t: 'good', m: 'Rien de spectaculaire, mais ça se voit. Apparence en hausse pendant cinq jours.' };
+          }
+        },
+        {
+          id: 'soin', n: 'Soin complet', ico: '🧖‍♀️', hours: 2, energy: -8, price: 55,
+          d: 'Visage, mains, posture. Une heure à se laisser faire, pour une fois.',
+          run: function (G) {
+            G.flag('styled', G.day() + 12); G.add('moral', 10); G.add('sante', 3);
+            G.set('hygiene', 100);
+            return { t: 'good', m: 'On s’occupe enfin de vous. Apparence en hausse pendant douze jours.' };
+          }
+        },
+        {
+          id: 'relook', n: 'Relooking complet', ico: '✨', hours: 3, energy: -4, price: 160,
+          d: 'Coupe, soins, conseil en image. Ce que voient les gens qui décident.',
+          run: function (G) {
+            G.flag('styled', G.day() + 21); G.add('moral', 18); G.xp('charisme', 16);
+            G.set('hygiene', 100);
+            return { t: 'good', m: 'Vous ressortez méconnaissable. Apparence en hausse pendant trois semaines — et ça change la façon dont on vous parle.' };
+          }
+        }
+      ]
+    },
+
+    {
+      id: 'clinique', n: 'Clinique privée', ico: '⚕️', when: 'day',
+      d: 'Ce que l’argent achète que la médecine gratuite ne peut pas toujours offrir : du temps, et de la discrétion.',
+      req: { money: 40 },
+      sessions: [
+        {
+          id: 'consult', n: 'Consultation standard', ico: '🩺', hours: 1, energy: -2, price: 40,
+          d: 'Un vrai médecin, un vrai diagnostic, pas de salle d’attente.',
+          run: function (G) {
+            G.add('sante', 30);
+            return { t: 'good', m: 'Ordonnance en main, diagnostic clair. Santé +30.' };
+          }
+        },
+        {
+          id: 'urgence', n: 'Prise en charge complète', ico: '🏥', hours: 3, energy: -10, price: 180,
+          d: 'Examens, soins, suivi. Pour un corps qui a vraiment besoin de souffler.',
+          run: function (G) {
+            G.add('sante', 55); G.add('moral', 10);
+            return { t: 'good', m: 'Bilan complet, traitement immédiat. Santé +55.' };
+          }
+        },
+        {
+          id: 'psy', n: 'Suivi psychologique', ico: '🛋️', hours: 2, energy: -4, price: 90,
+          d: 'Une heure à parler à quelqu’un dont c’est le métier, pas l’amitié.',
+          run: function (G) {
+            G.add('moral', 26); G.xp('charisme', 5);
+            if (G.flags('addict') && G.chance(30)) {
+              G.flag('addict', Math.max(0, G.flags('addict') - 1));
+              return { t: 'good', m: 'Vous parlez de choses que vous ne dites à personne. Moral +26 — et un peu de terrain regagné sur la dépendance.' };
+            }
+            return { t: 'good', m: 'Vous parlez de choses que vous ne dites à personne. Moral +26.' };
+          }
+        },
+        {
+          id: 'sevrage', n: 'Cure de sevrage encadrée', ico: '💉', hours: 4, energy: -18, price: 320,
+          d: 'Suivi médical, protocole complet. La méthode la plus sûre pour décrocher.',
+          req: { flag: 'addict' },
+          run: function (G) {
+            G.flag('addict', Math.max(0, G.flags('addict') - 3));
+            G.add('sante', -6); G.add('moral', -8);
+            return { t: 'good', m: 'Quatre jours difficiles condensés en une prise en charge. Votre dépendance recule nettement.' };
+          }
+        }
+      ]
+    },
+
+    {
+      id: 'affaires', n: 'Centre d’affaires', ico: '🏢', when: 'day',
+      d: 'Bureaux loués à l’heure, salles de réunion, et des gens qui se croisent exprès.',
+      req: { app: 40 },
+      sessions: [
+        {
+          id: 'atelier', n: 'Atelier collectif', ico: '📋', hours: 2, energy: -6, price: 30,
+          d: 'Une dizaine de personnes, un animateur, des cartes de visite qui changent de main.',
+          run: function (G) {
+            G.xp('intelligence', 10); G.xp('charisme', 10); G.rep('legale', 3);
+            return { t: 'good', m: 'Deux heures d’atelier, et un carnet d’adresses un peu plus épais.' };
+          }
+        },
+        {
+          id: 'conference', n: 'Conférence sectorielle', ico: '🎤', hours: 3, energy: -8, price: 90,
+          d: 'Intervenants, cocktail, badges nominatifs. On y vient pour la salle, pas pour la scène.',
+          req: { edu: 2 },
+          run: function (G) {
+            G.rep('legale', 8); G.flag('coached', G.day() + 6); G.xp('charisme', 12);
+            return { t: 'good', m: 'Une conversation de dix minutes au buffet vaut plus que la conférence elle-même. Vos prochains entretiens seront plus faciles six jours durant.' };
+          }
+        },
+        {
+          id: 'networking', n: 'Soirée de networking privée', ico: '🥂', hours: 4, energy: -10, price: 250,
+          d: 'Sur invitation. Ce qui se décide ici ne se décide nulle part ailleurs.',
+          req: { repLeg: 25, app: 55 },
+          run: function (G) {
+            var r = G.rnd(1, 100);
+            G.rep('legale', 10);
+            if (r <= 30) {
+              var gain = G.rnd(2000, 6000);
+              G.cash(gain, 'Contact d’affaires');
+              return { t: 'money', m: 'Un contact investit sur un coup de tête. ' + G.eur(gain) + ' virés le lendemain matin.' };
+            }
+            if (r <= 55 && G.s.biz.length) {
+              G.flag('network', true);
+              return { t: 'good', m: 'On vous présente à quelqu’un qui compte. Vos entreprises rapporteront davantage à partir de maintenant.' };
+            }
+            G.xp('charisme', 18);
+            return { t: 'neutral', m: 'Beaucoup de mains serrées, aucune promesse tenue. La soirée aura au moins été utile pour votre aisance.' };
+          }
+        }
+      ]
+    },
+    {
+      id: 'bourse', n: 'Bourse du commerce', ico: '🏛️', when: 'day', market: true,
+      d: 'Fonder une affaire, en racheter une déjà lancée, céder la vôtre. Les prix suivent le marché — ils ne le suivent jamais longtemps dans le même sens.',
+      req: {},
+      sessions: []
     }
   ];
   D.VENUE = {};

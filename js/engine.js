@@ -159,7 +159,7 @@
   G.xp = function (stat, n) {
     var st = this.s.stats[stat];
     if (!st || st.lvl >= D.MAX_LVL) return;
-    st.xp += n;
+    st.xp = Math.round(st.xp + n);
     var up = 0;
     while (st.lvl < D.MAX_LVL && st.xp >= D.xpNeeded(st.lvl)) { st.xp -= D.xpNeeded(st.lvl); st.lvl++; up++; }
     if (up && !this._q) {
@@ -266,6 +266,7 @@
       return flabel + ' — ' + (D.FILIERE_TIER[req.filiereLvl - 1] || 'niveau ' + req.filiereLvl) + ' requis';
     }
     if (req.addr && !S.home(s).addr) return 'Une adresse fixe est exigée';
+    if (req.outdoor && S.home(s).id !== 'street' && S.home(s).id !== 'tent') return 'Inutile : vous avez déjà un abri';
     if (req.shower && !S.home(s).shower) return 'Nécessite un logement avec douche';
     if (req.bank && !s.bank.open) return 'Un compte bancaire est nécessaire';
     if (req.biz && s.biz.length < req.biz) return req.biz + ' entreprise(s) requise(s)';
@@ -441,8 +442,7 @@
     p *= this.condition();
     p = clamp(p, 4, 94);
 
-    if (s.flags.ghost) heat = Math.round(heat * 0.75);
-    if (this.has('gants')) heat = Math.round(heat * 0.85);
+    /* ghost/gants sont déjà appliqués une fois dans G.heat() : pas la peine de les compter deux fois ici */
 
     return { win: this.chance(p), p: p, heat: heat, cased: !!cased };
   };
@@ -728,6 +728,7 @@
       this.add('moral', -8);
       this.hist('rejected');
       this.log('Entretien pour le poste de ' + j.n + '. « Nous vous rappellerons. » On ne vous rappellera pas.', 'bad');
+      if (!this._q) NS.UI.toast('❌ Candidature refusée — ' + j.n, 'bad');
     }
     this.afterAction(j);
   };
@@ -749,7 +750,9 @@
 
   G.quitJob = function () {
     if (!this.s.job) return;
-    this.log('Vous quittez votre poste de ' + D.JOB[this.s.job.id].n + '.', 'neutral');
+    var jn = D.JOB[this.s.job.id].n;
+    this.log('Vous quittez votre poste de ' + jn + '.', 'neutral');
+    if (!this._q) NS.UI.toast('💼 Démission — ' + jn, 'bad');
     this.s.job = null;
     this.rep('legale', -3);
     NS.UI.refresh(); S.save(this.s);
@@ -1061,7 +1064,12 @@
   /* =========================================================
      11. Entreprises
      ========================================================= */
-  G.ownBiz = function (id) { return this.s.biz.filter(function (b) { return b.id === id; })[0]; };
+  /** Une entreprise possédée, retrouvée par son identifiant unique d'instance */
+  G.ownBiz = function (uid) { return this.s.biz.filter(function (b) { return b.uid === uid; })[0]; };
+
+  /** La première entreprise possédée dans ce secteur, s'il y en a une */
+  G.bizOfSector = function (id) { return this.s.biz.filter(function (b) { return b.id === id; })[0]; };
+  G.ownsSector = function (id) { return !!this.bizOfSector(id); };
 
   /** Nom d'affiche d'une entreprise possédée : celui choisi par le joueur, ou celui du secteur */
   G.bizName = function (b) {
@@ -1069,46 +1077,117 @@
     return (b && b.name) || (d ? d.n : 'Entreprise');
   };
 
-  G.buyBiz = function (id, name) {
+  /** Capital de fondation : suit l'indice du secteur et l'emplacement ; moins cher pour une filiale */
+  G.bizCreationCost = function (d, locDef, branch) {
+    var idx = S.bizIdxOf(this.s, d.id);
+    return Math.round(d.cost * locDef.costMult * idx * (branch ? 0.7 : 1));
+  };
+
+  G.buyBiz = function (id, name, loc) {
     var d = D.BIZI[id];
-    if (!d || this.ownBiz(id)) return;
+    if (!d) return;
     var r = this.checkReq(d.req);
     if (r) { NS.UI.toast(r, 'bad'); return; }
-    if (!this.canPay(d.cost)) { NS.UI.toast('Capital insuffisant', 'bad'); return; }
+    var locDef = D.BIZ_LOC[loc] || D.BIZ_LOC.correct;
+    var branch = this.ownsSector(id);
+    var cost = this.bizCreationCost(d, locDef, branch);
+    if (!this.canPay(cost)) { NS.UI.toast('Capital insuffisant', 'bad'); return; }
     if (S.hoursLeft(this.s) < 3) { NS.UI.toast('Pas assez de temps', 'bad'); return; }
 
-    var clean = String(name || '').replace(/[<>]/g, '').trim().slice(0, 28) || d.n;
+    var clean = String(name || '').replace(/[<>]/g, '').trim().slice(0, 28) || (branch ? d.n + ' — filiale' : d.n);
     this.spendTime(3); this.spendEnergy(12);
-    this.spend(d.cost, 'Création : ' + clean);
-    this.s.biz.push({ id: id, lvl: 1, name: clean, health: 100 });
-    this.rep(d.legal === false ? 'pegre' : 'legale', 6);
-    this.xp('intelligence', 25);
-    this.log('<b>' + clean + '</b> (' + d.n + ') est fondée. Vous n’êtes plus salarié de votre propre vie.', 'good');
-    this.milestone('firstBiz', '🚀 Premier entrepreneur',
-      'Vous possédez une entreprise. À partir d’ici, votre argent travaille aussi la nuit.');
+    this.spend(cost, (branch ? 'Filiale : ' : 'Création : ') + clean);
+    this.s.bizSeq = (this.s.bizSeq || 0) + 1;
+    this.s.biz.push({ uid: this.s.bizSeq, id: id, lvl: 1, name: clean, health: 100, loc: locDef.id, staff: 0 });
+    this.rep(d.legal === false ? 'pegre' : 'legale', branch ? 3 : 6);
+    this.xp('intelligence', branch ? 15 : 25);
+    this.log('<b>' + clean + '</b> (' + d.n + ', ' + locDef.n + ') est fondée. ' +
+      (branch ? 'Une deuxième enseigne, pour diversifier.' : 'Vous n’êtes plus salarié de votre propre vie.'), 'good');
+    if (!branch) {
+      this.milestone('firstBiz', '🚀 Premier entrepreneur',
+        'Vous possédez une entreprise. À partir d’ici, votre argent travaille aussi la nuit.');
+    } else {
+      this.milestone('bizBranch', '🏬 Petit empire',
+        'Une deuxième affaire. Ce n’est plus un coup de chance, c’est une méthode.');
+    }
     this.afterAction(d);
   };
 
   G.grantBiz = function (id, lvl) {
-    var b = this.ownBiz(id);
+    var b = this.bizOfSector(id);
     if (b) { b.lvl = Math.max(b.lvl, lvl); return; }
-    this.s.biz.push({ id: id, lvl: lvl, health: 100 });
+    this.s.bizSeq = (this.s.bizSeq || 0) + 1;
+    this.s.biz.push({ uid: this.s.bizSeq, id: id, lvl: lvl, health: 100, loc: 'correct', staff: 0 });
   };
 
   G.bizUpCost = function (b) {
     var d = D.BIZI[b.id];
-    return Math.round(d.cost * 0.65 * Math.pow(1.55, b.lvl));
+    return Math.round(d.cost * S.bizLoc(b).costMult * S.bizIdxOf(this.s, b.id) * 0.65 * Math.pow(1.55, b.lvl));
   };
 
   /** Coût pour restaurer la santé d'une entreprise négligée */
   G.bizManageCost = function (b) {
     var d = D.BIZI[b.id];
-    return Math.round(d.cost * 0.05 * (1 + b.lvl * 0.15));
+    return Math.round(d.cost * S.bizLoc(b).costMult * 0.05 * (1 + b.lvl * 0.15));
   };
 
-  G.upgradeBiz = function (id) {
-    var b = this.ownBiz(id); if (!b) return;
-    var d = D.BIZI[id];
+  /** Ce que rapporte une session de travail personnel dans sa propre entreprise */
+  G.bizWorkPay = function (b) {
+    var d = D.BIZI[b.id], s = this.s;
+    var skillMult = 1 + s.stats.intelligence.lvl * 0.04 + s.stats.charisme.lvl * 0.03;
+    var base = (d.rev / 8) * (1 + b.lvl * 0.12) * S.bizLoc(b).revMult * S.bizIdxOf(s, b.id);
+    return Math.round(base * skillMult * this.rndF(0.85, 1.15));
+  };
+
+  /** Travailler soi-même dans une de ses entreprises : utile tôt, avant d'avoir du personnel */
+  G.workBiz = function (uid) {
+    var b = this.ownBiz(uid); if (!b) return;
+    var d = D.BIZI[b.id];
+    if (S.hoursLeft(this.s) < 3) { NS.UI.toast('Pas assez de temps', 'bad'); return; }
+
+    this.spendTime(3); this.spendEnergy(14);
+    var pay = this.bizWorkPay(b);
+    if (d.legal === false) this.dirtyCash(pay, 'Travail — ' + this.bizName(b));
+    else this.cash(pay, 'Travail — ' + this.bizName(b));
+    b.health = Math.min(100, (b.health === undefined ? 100 : b.health) + 6);
+    this.xp('intelligence', 6); this.xp('charisme', 4);
+    this.log('Vous travaillez chez <b>' + this.bizName(b) + '</b> : ' + this.eur(pay) + '.', d.legal === false ? 'dirty' : 'money');
+    if (!this._q) NS.UI.toast('💼 ' + this.bizName(b) + ' — ' + this.eur(pay), 'good');
+    this.afterAction(d);
+  };
+
+  /** Embaucher un employé : coûte cher, mais fait tourner l'activité même absent */
+  G.hireStaff = function (uid) {
+    var b = this.ownBiz(uid); if (!b) return;
+    var d = D.BIZI[b.id];
+    var max = S.bizMaxStaff(d);
+    if ((b.staff || 0) >= max) { NS.UI.toast('Effectif au complet', 'bad'); return; }
+    var cost = S.bizStaffHireCost(d, b);
+    if (!this.canPay(cost)) { NS.UI.toast('Il faut ' + this.eur(cost), 'bad'); return; }
+    if (S.hoursLeft(this.s) < 1) { NS.UI.toast('Pas assez de temps', 'bad'); return; }
+
+    this.spendTime(1); this.spendEnergy(6);
+    this.spend(cost, 'Embauche : ' + this.bizName(b));
+    b.staff = (b.staff || 0) + 1;
+    this.rep(d.legal === false ? 'pegre' : 'legale', 1);
+    this.log('Vous embauchez chez <b>' + this.bizName(b) + '</b> (' + b.staff + ' employé' + (b.staff > 1 ? 's' : '') + ').', 'good');
+    if (!this._q) NS.UI.toast('🧑‍💼 Nouvel employé — ' + this.bizName(b), 'good');
+    NS.UI.refresh(); S.save(this.s);
+  };
+
+  /** Licencier : réduit la masse salariale, sans indemnité */
+  G.fireStaff = function (uid) {
+    var b = this.ownBiz(uid); if (!b || !b.staff) return;
+    b.staff -= 1;
+    this.add('moral', -3);
+    this.log('Vous licenciez chez <b>' + this.bizName(b) + '</b>.', 'bad');
+    if (!this._q) NS.UI.toast('📉 Licenciement — ' + this.bizName(b), 'bad');
+    NS.UI.refresh(); S.save(this.s);
+  };
+
+  G.upgradeBiz = function (uid) {
+    var b = this.ownBiz(uid); if (!b) return;
+    var d = D.BIZI[b.id];
     if (b.lvl >= d.maxLvl) { NS.UI.toast('Niveau maximum atteint', 'bad'); return; }
     var cost = this.bizUpCost(b);
     if (!this.canPay(cost)) { NS.UI.toast('Il faut ' + this.eur(cost), 'bad'); return; }
@@ -1124,9 +1203,9 @@
   };
 
   /** Réinvestir pour restaurer la santé d'une entreprise négligée, avant la faillite */
-  G.manageBiz = function (id) {
-    var b = this.ownBiz(id); if (!b) return;
-    var d = D.BIZI[id];
+  G.manageBiz = function (uid) {
+    var b = this.ownBiz(uid); if (!b) return;
+    var d = D.BIZI[b.id];
     var health = b.health === undefined ? 100 : b.health;
     if (health >= 95) { NS.UI.toast('L’activité tourne déjà bien', 'bad'); return; }
     var cost = this.bizManageCost(b);
@@ -1141,15 +1220,56 @@
     this.afterAction(d);
   };
 
-  G.sellBiz = function (id) {
-    var b = this.ownBiz(id); if (!b) return;
-    var d = D.BIZI[id];
-    var price = Math.round(d.cost * b.lvl * 0.7 * S.bizHealthFactor(b));
+  G.sellBiz = function (uid) {
+    var b = this.ownBiz(uid); if (!b) return;
+    var d = D.BIZI[b.id];
+    var price = Math.round(d.cost * S.bizLoc(b).costMult * b.lvl * 0.7 * S.bizHealthFactor(b) * S.bizIdxOf(this.s, b.id));
     var name = this.bizName(b);
-    this.s.biz = this.s.biz.filter(function (x) { return x.id !== id; });
+    this.s.biz = this.s.biz.filter(function (x) { return x.uid !== uid; });
     this.cash(price, 'Cession : ' + name);
     this.log('Vous cédez <b>' + name + '</b> pour ' + this.eur(price) + '.', 'money');
     NS.UI.refresh(); S.save(this.s);
+  };
+
+  /* --------- Rachat d'entreprises déjà lancées, à la Bourse du commerce --------- */
+  G.refreshBizListings = function () {
+    var s = this.s, self = this;
+    var listings = [];
+    for (var i = 0; i < 3; i++) {
+      var d = self.pick(D.BIZ);
+      var lvl = self.rnd(1, 5);
+      var health = self.rnd(35, 90);
+      var loc = self.pick(D.BIZ_LOCS);
+      var idx = S.bizIdxOf(s, d.id);
+      var price = Math.round(d.cost * loc.costMult * idx * lvl * 0.9 * (0.35 + 0.65 * health / 100) * self.rndF(0.9, 1.15));
+      listings.push({ id: d.id, lvl: lvl, health: health, loc: loc.id, price: price });
+    }
+    s.bizListings = listings;
+    s.bizListingsDay = s.day;
+  };
+
+  G.buyBizListing = function (idx) {
+    var s = this.s;
+    var listing = s.bizListings && s.bizListings[idx];
+    if (!listing) return;
+    var d = D.BIZI[listing.id];
+    var r = this.checkReq(d.req);
+    if (r) { NS.UI.toast(r, 'bad'); return; }
+    if (!this.canPay(listing.price)) { NS.UI.toast('Capital insuffisant', 'bad'); return; }
+    if (S.hoursLeft(this.s) < 2) { NS.UI.toast('Pas assez de temps', 'bad'); return; }
+
+    this.spendTime(2); this.spendEnergy(10);
+    this.spend(listing.price, 'Rachat : ' + d.n);
+    var locDef = D.BIZ_LOC[listing.loc] || D.BIZ_LOC.correct;
+    s.bizSeq = (s.bizSeq || 0) + 1;
+    s.biz.push({ uid: s.bizSeq, id: listing.id, lvl: listing.lvl, name: d.n, health: listing.health, loc: locDef.id, staff: 0 });
+    s.bizListings.splice(idx, 1);
+    this.rep(d.legal === false ? 'pegre' : 'legale', 5);
+    this.xp('intelligence', 18);
+    this.log('Vous rachetez <b>' + d.n + '</b> (niveau ' + listing.lvl + ', ' + locDef.n + ') pour ' + this.eur(listing.price) + '.', 'good');
+    if (!this._q) NS.UI.toast('🤝 ' + d.n + ' racheté', 'good');
+    this.milestone('bizBuy', '🤝 Rachat', 'Vous ne l’avez pas construite depuis le début — vous l’avez prise déjà en marche.');
+    NS.UI.refresh(); S.save(s);
   };
 
   /* =========================================================
@@ -1158,7 +1278,9 @@
   G.buyItem = function (id, useDirty) {
     var it = D.ITEM[id]; if (!it) return;
     if (it.keep && this.has(id)) { NS.UI.toast('Vous le possédez déjà', 'bad'); return; }
-    var r = this.checkReq(it.req);
+    /* Farid ouvre l'accès à l'armement sans passer par la réputation pègre */
+    var req = (id === 'arme' && this.s.flags.faridArmes) ? {} : it.req;
+    var r = this.checkReq(req);
     if (r) { NS.UI.toast(r, 'bad'); return; }
 
     if (!this.spend(it.price, it.n, { dirty: !!useDirty })) {
@@ -1166,6 +1288,7 @@
     }
     this.s.inv[id] = (this.s.inv[id] || 0) + 1;
     this.log('Achat : ' + it.ico + ' <b>' + it.n + '</b> — ' + this.eur(it.price) + '.', 'money');
+    if (!this._q) NS.UI.toast(it.ico + ' ' + it.n + ' — acheté', 'good');
     NS.UI.refresh(); S.save(this.s);
   };
 
@@ -1175,6 +1298,7 @@
     this.take(id, 1);
     this.cash(price, 'Revente');
     this.log('Vous revendez ' + it.n + ' pour ' + this.eur(price) + '.', 'money');
+    if (!this._q) NS.UI.toast(it.ico + ' ' + it.n + ' revendu — ' + this.eur(price), 'good');
     NS.UI.refresh(); S.save(this.s);
   };
 
@@ -1185,9 +1309,10 @@
       if (k === 'xp') { this.xp(it.use.xp[0], it.use.xp[1]); return; }
       this.add(k, it.use[k]);
     }, this);
-    if (id === 'alcool' && this.chance(20)) this.flag('addict', (this.s.flags.addict || 0) + 1);
+    if (it.addictRisk && this.chance(it.addictRisk)) this.flag('addict', (this.s.flags.addict || 0) + 1);
     this.take(id, 1);
     this.log('Vous utilisez ' + it.ico + ' <b>' + it.n + '</b>.', 'good');
+    if (!this._q) NS.UI.toast(it.ico + ' ' + it.n + ' utilisé', 'good');
     this.checkEnd();
     NS.UI.refresh(); S.save(this.s);
   };
@@ -1220,6 +1345,7 @@
       this.log('Le déménagement vous fait perdre ' + this.eur(lost) + ' d’argent planqué.', 'bad');
     }
     this.log('Vous emménagez : ' + h.ico + ' <b>' + h.name + '</b>.', 'good');
+    if (!this._q) NS.UI.toast(h.ico + ' Emménagement — ' + h.name, 'good');
     if (was === 'street' && id !== 'street') {
       this.milestone('firstRoof', '🔑 Un toit',
         'Pour la première fois, vous fermez une porte derrière vous. Le sommeil ne sera plus jamais le même.');
@@ -1297,6 +1423,7 @@
     this.hist('betray');
     this.add('moral', -20);
     this.log('<b>Vous vendez ' + n.n + '.</b> ' + this.eur(gain) + ' d’argent sale, et un pont brûlé pour toujours.', 'bad');
+    if (!this._q) NS.UI.flash('🔪 ' + n.n + ' — relation détruite', 'bad');
     NS.UI.refresh(); S.save(this.s);
   };
 
@@ -1528,12 +1655,17 @@
      ========================================================= */
 
   /** Échéance de loyer : ne tombe qu'aux dates prévues par le bail */
+  /**
+   * Le loyer n'est plus débité automatiquement : il s'accumule à l'échéance,
+   * et c'est au joueur de le régler depuis l'onglet Logement (voir G.payRent).
+   * La tolérance avant expulsion dépend de la périodicité du bail.
+   */
   G.tickRent = function (lines, away) {
     var s = this.s;
     var h = S.home(s);
     var rent = S.rent(s);
 
-    if (!rent) { s.rentLate = 0; return; }
+    if (!rent) { s.rentLate = 0; s.rentOwed = 0; return; }
     if (s.flags.freeShelter > 0 && h.id === 'shelter') {
       s.flags.freeShelter--;
       if (s.rentDue <= s.day) s.rentDue = s.day + 1;
@@ -1543,34 +1675,40 @@
     if (s.day < s.rentDue) return;
 
     var per = D.PERIODS_PAY[S.rentPer(s)] || D.PERIODS_PAY.day;
-    var label = 'Loyer ' + per.n;
+    var maxLate = S.rentMaxLate(s);
 
-    if (this.spend(rent, label)) {
-      s.rentDue = s.day + per.days;
-      s.rentLate = 0;
-      lines.push('Loyer réglé : ' + this.eur(rent) + ' (' + per.n + ').');
-      this.rep('legale', 0.4);
-      if (s.bank.open) this.bankScore(0.3);
-      return;
-    }
-
-    /* impayé */
+    s.rentOwed = (s.rentOwed || 0) + rent;
+    s.rentDue = s.day + per.days;
     s.rentLate++;
     this.bankScore(-3);
-    if (away || s.rentLate >= 3) {
+
+    if (away || s.rentLate > maxLate) {
       s.home = 'street';
-      s.rentDue = 0; s.rentLate = 0;
+      s.rentDue = 0; s.rentLate = 0; s.rentOwed = 0;
       this.add('moral', -20);
       this.rep('legale', -4);
-      lines.push('<b>Expulsion.</b> Le loyer de ' + this.eur(rent) + ' n’a pas été réglé. Retour au trottoir.');
+      lines.push('<b>Expulsion.</b> Le loyer n’a pas été réglé à temps. Retour au trottoir.');
       if (!this._q) NS.UI.flash('🏚️ Expulsé de votre logement', 'bad');
     } else {
-      s.rentDue = s.day + 2;
       this.add('moral', -8);
-      lines.push('<b>Loyer impayé</b> (relance ' + s.rentLate + '/3). ' +
-        'Encore deux relances avant l’expulsion — vous pouvez tenter de négocier un délai.');
-      if (!this._q) NS.UI.flash('⚠️ Loyer impayé — relance ' + s.rentLate + '/3', 'bad');
+      lines.push('<b>Loyer dû</b> : ' + this.eur(s.rentOwed) + ' (retard ' + s.rentLate + '/' + maxLate + '). ' +
+        'Réglez-le depuis l’onglet Logement avant l’expulsion — ou tentez de négocier un délai.');
+      if (!this._q) NS.UI.flash('⚠️ Loyer dû : ' + this.eur(s.rentOwed), 'bad');
     }
+  };
+
+  /** Règlement manuel du loyer accumulé */
+  G.payRent = function () {
+    var s = this.s;
+    var amount = s.rentOwed || 0;
+    if (amount <= 0) { NS.UI.toast('Rien à payer pour l’instant', 'bad'); return; }
+    if (!this.spend(amount, 'Loyer')) { NS.UI.toast('Il manque ' + this.eur(amount - S.spendable(s)), 'bad'); return; }
+    s.rentOwed = 0; s.rentLate = 0; s.rentGrace = 0;
+    this.rep('legale', 0.4);
+    if (s.bank.open) this.bankScore(0.5);
+    this.log('<b>Loyer réglé</b> : ' + this.eur(amount) + '.', 'good');
+    if (!this._q) NS.UI.toast('🏠 Loyer payé — ' + this.eur(amount), 'good');
+    NS.UI.refresh(); S.save(s);
   };
 
   /** Négocier un délai auprès du bailleur (charisme) */
@@ -1609,10 +1747,17 @@
     var per = D.PERIODS_PAY[j.payPer || 'week'];
     var cal = D.cal(s.day);
 
-    /* fin de semaine de travail : contrôle du quota */
+    /* fin de semaine de travail : contrôle du quota
+       Embauché en cours de semaine, on ne juge que sur les quarts réellement possibles
+       depuis l'embauche — impossible de reprocher des jours où le poste n'existait pas encore. */
     if (cal.dow === 0 && s.day > (s.job.weekAnchor || 0)) {
       var done = s.job.weekShifts || 0;
-      var quota = j.quota || 4;
+      var jobDays = j.days || [0, 1, 2, 3, 4, 5, 6];
+      var possible = 0;
+      for (var wd = s.job.weekAnchor || s.day; wd < s.day; wd++) {
+        if (jobDays.indexOf(D.cal(wd).dow) !== -1) possible++;
+      }
+      var quota = Math.min(j.quota || 4, possible);
       if (done < quota) {
         var missed = quota - done;
         s.job.absences = (s.job.absences || 0) + missed;
@@ -1658,7 +1803,7 @@
     var s = this.s;
     D.STAT_IDS.forEach(function (k) {
       var st = s.stats[k];
-      var loss = 2 + st.lvl * 1.4;              // plus on est haut, plus l'entretien coûte
+      var loss = Math.round(2 + st.lvl * 1.4);  // plus on est haut, plus l'entretien coûte
       st.xp -= loss;
       while (st.xp < 0 && st.lvl > 1) {
         st.lvl--;
@@ -1676,7 +1821,7 @@
     var closed = [];
     s.biz.forEach(function (b) {
       var d = D.BIZI[b.id]; if (!d) return;
-      var decay = (1.3 + b.lvl * 0.2 + (d.legal === false ? 0.6 : 0)) * (away ? 1.6 : 1) * self.rndF(0.75, 1.3);
+      var decay = (1.3 + b.lvl * 0.2 + (d.legal === false ? 0.6 : 0)) * (away ? 1.6 : 1) * self.rndF(0.75, 1.3) * S.bizDecayMult(b);
       b.health = Math.max(0, Math.min(100, (b.health === undefined ? 100 : b.health) - decay));
       if (b.health <= 0) closed.push(b);
     });
@@ -1700,9 +1845,30 @@
     if (dinc > 0) {
       this.dirtyCash(dinc, 'Réseau');
       var extraHeat = 0;
-      s.biz.forEach(function (b) { var d = D.BIZI[b.id]; if (d && d.heat) extraHeat += d.heat; });
+      s.biz.forEach(function (b) { var d = D.BIZI[b.id]; if (d && d.heat) extraHeat += d.heat * S.bizLoc(b).riskMult; });
+      extraHeat = Math.round(extraHeat);
       this.heat(extraHeat);
       if (!away) lines.push('Votre réseau rapporte ' + this.eur(dinc) + ' d’argent sale. Pression policière +' + extraHeat + '.');
+    }
+
+    /* masse salariale : à payer chaque jour, sinon un employé démissionne */
+    var wages = S.bizWagesTotal(s);
+    if (wages > 0) {
+      if (S.spendable(s) >= wages) {
+        var fromBank = Math.min(s.bank.checking, wages);
+        s.bank.checking -= fromBank;
+        s.money -= (wages - fromBank);
+        s.totals.spent += wages;
+        if (!away) lines.push('Salaires versés : ' + this.eur(wages) + '.');
+      } else {
+        var withStaff = s.biz.filter(function (b) { return b.staff > 0; });
+        if (withStaff.length) {
+          var bq = self.pick(withStaff);
+          bq.staff--;
+          bq.health = Math.max(0, bq.health - 10);
+          lines.push('<b>Salaires impayés.</b> Un employé quitte ' + self.bizName(bq) + '.');
+        }
+      }
     }
     return inc;
   };

@@ -106,6 +106,10 @@
       safe: h.safe || 0,
       risk: h.risk || 0,
       outdoor: (h.safe || 0) <= 1,
+      /* littéralement sans toit — la météo vous atteint directement */
+      roofless: h.id === 'street' || h.id === 'tent',
+      /* un abri, même précaire, a une porte qu'on peut forcer */
+      hasShelter: h.id !== 'street',
       wealth: S.netWorth(s),
       cash: s.money,
       dirty: s.dirty,
@@ -144,7 +148,7 @@
       build: function (G, c) {
         var target = invItem(G, function (it) { return !it.keep; });
         var lootCash = Math.min(c.cash, scaled(G, 25, { min: 5 }));
-        var lieu = c.outdoor ? pick(G, LIEUX_NUIT) : 'dans ' + (c.home.name.toLowerCase());
+        var lieu = c.roofless ? pick(G, LIEUX_NUIT) : 'dans ' + (c.home.name.toLowerCase());
         return {
           ico: '🕳️', title: 'On a fouillé vos affaires',
           text: 'Vous vous réveillez ' + lieu + ' avec la sensation que quelque chose a bougé. ' +
@@ -195,7 +199,8 @@
 
     {
       id: 'p_intrusion', when: 'night',
-      weight: function (c) { return c.safe >= 5 ? 0 : (c.outdoor ? 7 : 9 - c.safe); },
+      /* il faut une porte pour qu'on essaie de la forcer : ça exclut le trottoir nu */
+      weight: function (c) { return (!c.hasShelter || c.safe >= 5) ? 0 : (c.outdoor ? 7 : 9 - c.safe); },
       build: function (G, c) {
         return {
           ico: '🚪', title: 'Quelqu’un essaie d’entrer',
@@ -242,7 +247,8 @@
 
     {
       id: 'p_weather', when: 'night',
-      weight: function (c) { return c.outdoor ? 12 : (c.safe < 3 ? 4 : 0); },
+      /* le texte suppose qu'on dort à ciel ouvert : ne doit jamais tomber sur un logement avec un toit */
+      weight: function (c) { return c.roofless ? 12 : 0; },
       build: function (G, c) {
         var m = pick(G, METEO);
         return {

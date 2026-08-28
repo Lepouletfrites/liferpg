@@ -482,7 +482,7 @@
       cond: function (G) { return G.s.biz.length > 0; },
       text: 'Un fonds vous contacte : il veut entrer au capital de votre société. L’argent est immédiat, la liberté un peu moins.',
       choices: [
-        { l: 'Accepter la levée', h: 'Cash immédiat, revenus réduits', run: function (G) { var b = G.s.biz[0], d = D.BIZI[b.id]; var m = Math.round(d.cost * b.lvl * 0.9); G.cash(m, 'Levée de fonds'); if (b.lvl > 1) b.lvl--; G.aff('vidal', 8); G.rep('legale', 5); return G.eur(m) + ' sur le compte. En échange, vous cédez une part de votre outil.'; } },
+        { l: 'Accepter la levée', h: 'Cash immédiat, revenus réduits', run: function (G) { var b = G.s.biz[0], d = D.BIZI[b.id]; var m = Math.round(d.cost * S.bizLoc(b).costMult * b.lvl * 0.9); G.cash(m, 'Levée de fonds'); if (b.lvl > 1) b.lvl--; G.aff('vidal', 8); G.rep('legale', 5); return G.eur(m) + ' sur le compte. En échange, vous cédez une part de votre outil.'; } },
         { l: 'Refuser et garder le contrôle', h: 'Réputation légale +', run: function (G) { G.rep('legale', 6); G.xp('intelligence', 12); G.aff('vidal', 4); return '« Je préfère cent pour cent de ce que je construis. » Alex sourit.'; } }
       ]
     },

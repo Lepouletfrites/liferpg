@@ -264,6 +264,15 @@
       if (h.length > 40) h.shift();
       m.hist[a.id] = h;
     });
+
+    /* l'indice de chaque secteur d'activité suit le climat économique général, en plus amorti */
+    if (!s.bizIdx) s.bizIdx = {};
+    D.BIZ.forEach(function (d) {
+      var cur = s.bizIdx[d.id] || 1;
+      var move = 0.0006 + reg.drift * 0.4 + 0.01 * reg.mult * g.gauss();
+      cur = Math.max(0.55, Math.min(2.2, cur * (1 + move)));
+      s.bizIdx[d.id] = Math.round(cur * 1000) / 1000;
+    });
   };
 
   /* --------- passage quotidien complet --------- */

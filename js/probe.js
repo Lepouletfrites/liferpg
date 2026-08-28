@@ -180,75 +180,99 @@
   /* ---------------------------------------------------------
      Points d'entrée
      --------------------------------------------------------- */
+  /* ---------------------------------------------------------
+     Fiches détaillées (appui long) : simulation plus lourde, donc
+     mise en cache elle aussi — sinon rouvrir la même fiche deux fois
+     de suite tirait un nouvel échantillon et affichait un pourcentage
+     différent à chaque fois, alors que rien n'avait changé.
+     --------------------------------------------------------- */
+  var detailCache = {};
+
+  function cachedDetail(kind, id, compute) {
+    var key = cacheKey(kind, id);
+    if (detailCache[key]) return detailCache[key];
+    var out = compute();
+    detailCache[key] = out;
+    return out;
+  }
+
   P.action = function (a) {
-    var spec = {
-      hours: a.hours || 0, energy: a.energy || 0,
-      exec: function (g) { return a.run(g); }
-    };
-    var res = summarize(P.simulate(spec), spec);
-    res.sens = sensitivity(spec, res.gain.avg);
-    res.periods = periodScan(spec, a.when || 'day');
-    res.hours = a.hours || 0;
-    res.energy = a.energy || 0;
-    return res;
+    return cachedDetail('da', a.id, function () {
+      var spec = {
+        hours: a.hours || 0, energy: a.energy || 0,
+        exec: function (g) { return a.run(g); }
+      };
+      var res = summarize(P.simulate(spec), spec);
+      res.sens = sensitivity(spec, res.gain.avg);
+      res.periods = periodScan(spec, a.when || 'day');
+      res.hours = a.hours || 0;
+      res.energy = a.energy || 0;
+      return res;
+    });
   };
 
   P.crime = function (c) {
-    var spec = {
-      hours: c.hours || 0, energy: c.energy || 0,
-      exec: function (g) { g._crime = c; var r = c.run(g); g._crime = null; return r; }
-    };
-    var res = summarize(P.simulate(spec), spec);
-    res.sens = sensitivity(spec, res.gain.avg);
-    res.hours = c.hours || 0;
-    res.energy = c.energy || 0;
-    res.sentence = c.sentence;
-    return res;
+    return cachedDetail('dc', c.id, function () {
+      var spec = {
+        hours: c.hours || 0, energy: c.energy || 0,
+        exec: function (g) { g._crime = c; var r = c.run(g); g._crime = null; return r; }
+      };
+      var res = summarize(P.simulate(spec), spec);
+      res.sens = sensitivity(spec, res.gain.avg);
+      res.hours = c.hours || 0;
+      res.energy = c.energy || 0;
+      res.sentence = c.sentence;
+      return res;
+    });
   };
 
   P.gig = function (gg) {
-    var hours = NS.G.gigHours(gg);
-    var spec = {
-      hours: hours, energy: gg.energy || 0,
-      exec: function (g) {
-        var pay = Math.round(gg.pay(g) * g.condition());
-        g.cash(pay, gg.n);
-        if (gg.xp) Object.keys(gg.xp).forEach(function (k) { g.xp(k, gg.xp[k]); });
-        if (gg.rep) Object.keys(gg.rep).forEach(function (k) { g.rep(k, gg.rep[k]); });
-        if (gg.hyg) g.add('hygiene', gg.hyg);
-        if (gg.faim) g.add('faim', gg.faim);
-        g.add('moral', gg.moral !== undefined ? gg.moral : -2);
-        return { t: 'money' };
-      }
-    };
-    var res = summarize(P.simulate(spec), spec);
-    res.sens = sensitivity(spec, res.gain.avg);
-    res.hours = hours;
-    res.energy = gg.energy || 0;
-    return res;
+    return cachedDetail('dg', gg.id, function () {
+      var hours = NS.G.gigHours(gg);
+      var spec = {
+        hours: hours, energy: gg.energy || 0,
+        exec: function (g) {
+          var pay = Math.round(gg.pay(g) * g.condition());
+          g.cash(pay, gg.n);
+          if (gg.xp) Object.keys(gg.xp).forEach(function (k) { g.xp(k, gg.xp[k]); });
+          if (gg.rep) Object.keys(gg.rep).forEach(function (k) { g.rep(k, gg.rep[k]); });
+          if (gg.hyg) g.add('hygiene', gg.hyg);
+          if (gg.faim) g.add('faim', gg.faim);
+          g.add('moral', gg.moral !== undefined ? gg.moral : -2);
+          return { t: 'money' };
+        }
+      };
+      var res = summarize(P.simulate(spec), spec);
+      res.sens = sensitivity(spec, res.gain.avg);
+      res.hours = hours;
+      res.energy = gg.energy || 0;
+      return res;
+    });
   };
 
   P.shift = function (j, shifts) {
-    var hours = NS.G.gigHours(j);
-    var spec = {
-      hours: hours, energy: j.energy || 0,
-      exec: function (g) {
-        var sen = 1 + Math.floor((shifts || 0) / 10) * 0.08;
-        var pay = Math.round(j.pay * sen * g.condition());
-        var bonus = j.bonus ? Math.round(j.bonus(g) * g.condition()) : 0;
-        g.cash(pay + bonus, j.n);
-        Object.keys(j.xp).forEach(function (k) { g.xp(k, j.xp[k]); });
-        g.rep('legale', j.repLeg);
-        g.add('moral', j.moral !== undefined ? j.moral : -3);
-        g.add('hygiene', -6);
-        return { t: 'money' };
-      }
-    };
-    var res = summarize(P.simulate(spec), spec);
-    res.sens = sensitivity(spec, res.gain.avg);
-    res.hours = hours;
-    res.energy = j.energy || 0;
-    return res;
+    return cachedDetail('ds', j.id + (shifts || 0), function () {
+      var hours = NS.G.gigHours(j);
+      var spec = {
+        hours: hours, energy: j.energy || 0,
+        exec: function (g) {
+          var sen = 1 + Math.floor((shifts || 0) / 10) * 0.08;
+          var pay = Math.round(j.pay * sen * g.condition());
+          var bonus = j.bonus ? Math.round(j.bonus(g) * g.condition()) : 0;
+          g.cash(pay + bonus, j.n);
+          Object.keys(j.xp).forEach(function (k) { g.xp(k, j.xp[k]); });
+          g.rep('legale', j.repLeg);
+          g.add('moral', j.moral !== undefined ? j.moral : -3);
+          g.add('hygiene', -6);
+          return { t: 'money' };
+        }
+      };
+      var res = summarize(P.simulate(spec), spec);
+      res.sens = sensitivity(spec, res.gain.avg);
+      res.hours = hours;
+      res.energy = j.energy || 0;
+      return res;
+    });
   };
 
   /** Probabilité d'être embauché sur une candidature */
@@ -278,7 +302,7 @@
       Math.round(s.rep.rue) + ':' + Math.round(s.rep.pegre) + ':' + (s.flags.cased || '');
   }
 
-  P.clearPreviews = function () { pvCache = {}; };
+  P.clearPreviews = function () { pvCache = {}; detailCache = {}; };
 
   /**
    * @returns { money, dirty, gauges:{}, success } — moyennes sur quelques tirages
