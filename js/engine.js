@@ -1177,11 +1177,16 @@
     return Math.round(d.cost * S.bizLoc(b).costMult * 0.05 * (1 + b.lvl * 0.15));
   };
 
-  /** Ce que rapporte une session de travail personnel dans sa propre entreprise */
+  /**
+   * Ce que rapporte une session de travail personnel dans sa propre entreprise.
+   * Sous-linéaire en revenu (racine carrée) : la main-d'œuvre d'un seul homme
+   * ne peut pas suivre l'échelle d'une grosse structure comme le fait l'argent investi —
+   * sinon « travailler » dans un secteur haut de gamme dépasserait tout le reste du jeu.
+   */
   G.bizWorkPay = function (b) {
     var d = D.BIZI[b.id], s = this.s;
     var skillMult = 1 + s.stats.intelligence.lvl * 0.04 + s.stats.charisme.lvl * 0.03;
-    var base = (d.rev / 8) * (1 + b.lvl * 0.12) * S.bizLoc(b).revMult * S.bizIdxOf(s, b.id);
+    var base = (60 + Math.sqrt(d.rev) * 6) * (1 + b.lvl * 0.05) * S.bizLoc(b).revMult * S.bizIdxOf(s, b.id);
     return Math.round(base * skillMult * this.rndF(0.85, 1.15));
   };
 

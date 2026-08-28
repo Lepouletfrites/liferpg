@@ -241,7 +241,7 @@ window.LifeRPG = window.LifeRPG || {};
     { id: 'sac', n: 'Sac à dos solide', ico: '🎒', cat: 'tool', shop: 'city', price: 30, keep: true, d: 'Vos affaires ne disparaissent plus la nuit.' },
     { id: 'outils', n: 'Caisse à outils', ico: '🧰', cat: 'tool', shop: 'city', price: 95, keep: true, durability: 48, d: 'Débloque les dépannages rémunérés.' },
     { id: 'appareil', n: 'Appareil photo', ico: '📷', cat: 'tool', shop: 'city', price: 320, keep: true, durability: 45, d: 'Débloque la photographie d’événements.' },
-    { id: 'reparation', n: 'Kit de réparation', ico: '🩹', cat: 'tool', shop: 'city', price: 40, d: 'Consommable : répare un peu tout ce qui s’use dans votre sac.', repairAll: 25 },
+    { id: 'reparation', n: 'Kit de réparation', ico: '🩹', cat: 'tool', shop: 'city', price: 90, d: 'Consommable : répare un peu tout ce qui s’use dans votre sac.', repairAll: 15 },
 
     /* --- Tenues --- */
     { id: 'fripes', n: 'Fripes correctes', ico: '👕', cat: 'tenue', shop: 'city', price: 22, keep: true, style: 28, durability: 45, d: 'On ne vous fuit plus dans le métro.' },
@@ -252,9 +252,9 @@ window.LifeRPG = window.LifeRPG || {};
 
     /* --- Transport --- */
     { id: 'velo', n: 'Vélo', ico: '🚲', cat: 'transport', shop: 'city', price: 110, keep: true, speed: 1, durability: 55, d: 'Débloque la livraison à vélo.' },
-    { id: 'scooter', n: 'Scooter', ico: '🛵', cat: 'transport', shop: 'city', price: 1400, keep: true, speed: 2, durability: 85, d: 'Certains quarts coûtent 1 h de moins. Utile pour filer.' },
-    { id: 'voiture', n: 'Voiture', ico: '🚗', cat: 'transport', shop: 'city', price: 9000, keep: true, speed: 3, durability: 130, d: 'Confort, image, mobilité. Et un coffre.' },
-    { id: 'berline', n: 'Berline de luxe', ico: '🏎️', cat: 'transport', shop: 'city', price: 48000, keep: true, speed: 4, durability: 180, d: 'Un actif, et un message.' },
+    { id: 'scooter', n: 'Scooter', ico: '🛵', cat: 'transport', shop: 'city', price: 1400, keep: true, speed: 2, d: 'Certains quarts coûtent 1 h de moins. Utile pour filer.' },
+    { id: 'voiture', n: 'Voiture', ico: '🚗', cat: 'transport', shop: 'city', price: 9000, keep: true, speed: 3, durability: 700, d: 'Confort, image, mobilité. Et un coffre.' },
+    { id: 'berline', n: 'Berline de luxe', ico: '🏎️', cat: 'transport', shop: 'city', price: 48000, keep: true, speed: 4, d: 'Un actif, et un message.' },
     { id: 'casque', n: 'Casque intégral', ico: '🪖', cat: 'transport', shop: 'city', price: 60, keep: true, durability: 90, d: 'Réduit les accidents en scooter — les coursiers non casqués finissent souvent à l’hôpital.' },
 
     /* --- Tech --- */

@@ -416,7 +416,7 @@
       play: function (G, bet, choice) {
         var favoriWins = G.chance(62);
         var win = (choice === 'favori') === favoriWins;
-        var mult = choice === 'favori' ? 0.65 : 2.5;
+        var mult = choice === 'favori' ? 0.55 : 1.45;
         return {
           win: win ? Math.round(bet * mult) : -bet,
           m: favoriWins ? 'Le favori l’emporte, sans surprise.' : 'L’outsider renverse la salle.'
