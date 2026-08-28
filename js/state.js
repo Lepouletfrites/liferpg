@@ -47,6 +47,8 @@
       bizListings: [],      // offres de rachat à la Bourse du commerce
       bizListingsDay: 0,
       bizIdx: {},           // indice de marché par secteur (1 = neutre)
+      missions: [],          // missions du milieu proposées à la Cave
+      missionsDay: 0,
       bank: {
         open: false, checking: 0, savings: 0, score: 20,
         loan: null,         // { id, amount, rate, daily, due }
@@ -66,6 +68,7 @@
       rep: { rue: 5, legale: 5, pegre: 0 },
       repLast: { rue: 1, legale: 1, pegre: 1 },   // dernier jour où chaque réputation a progressé
       inv: {},
+      wear: {},          // { itemId: usure accumulée, 0..it.durability }
       npc: {},
       npcMet: {},           // dernier jour de contact
       quests: [],           // [{ npc, id, due }]
@@ -133,6 +136,7 @@
     if (!st.quests) st.quests = [];
     if (!st.npcMet) st.npcMet = {};
     if (!st.shopHeat) st.shopHeat = {};
+    if (!st.wear) st.wear = {};
     if (!st.procSeen) st.procSeen = {};
     if (!st.crimeLast) st.crimeLast = {};
     if (typeof st.rentDue !== 'number') st.rentDue = 0;
@@ -142,6 +146,8 @@
     if (typeof st.bizListingsDay !== 'number') st.bizListingsDay = 0;
     if (!st.bizIdx) st.bizIdx = {};
     D.BIZ.forEach(function (d) { if (typeof st.bizIdx[d.id] !== 'number') st.bizIdx[d.id] = 1; });
+    if (!st.missions) st.missions = [];
+    if (typeof st.missionsDay !== 'number') st.missionsDay = 0;
     if (st.biz) st.biz.forEach(function (b) {
       var d = D.BIZI[b.id];
       if (!b.name) b.name = d ? d.n : 'Entreprise';

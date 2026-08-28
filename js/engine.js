@@ -206,6 +206,50 @@
     n = n || 1;
     this.s.inv[id] = Math.max(0, (this.s.inv[id] || 0) - n);
     if (!this.s.inv[id]) delete this.s.inv[id];
+    if (this.s.wear) delete this.s.wear[id];
+  };
+
+  /** Usure d'un objet durable — 0 à it.durability. Casse et disparaît une fois le seuil atteint. */
+  G.itemWear = function (id) { return (this.s.wear && this.s.wear[id]) || 0; };
+  G.itemHealth = function (id) {
+    var it = D.ITEM[id];
+    if (!it || !it.durability) return 100;
+    return clamp(100 - (this.itemWear(id) / it.durability) * 100, 0, 100);
+  };
+
+  G.wearItem = function (id, lo, hi) {
+    var it = D.ITEM[id];
+    if (!it || !it.durability || !this.has(id)) return;
+    var s = this.s;
+    if (!s.wear) s.wear = {};
+    s.wear[id] = (s.wear[id] || 0) + this.rnd(lo || 1, hi || 3);
+    if (s.wear[id] >= it.durability) {
+      this.take(id, 1);
+      this.add('moral', -4);
+      this.log('<b>' + it.ico + ' ' + it.n + '</b> est hors d’usage. Il faudra le remplacer.', 'bad');
+      if (!this._q) NS.UI.toast('🛠️ ' + it.ico + ' ' + it.n + ' hors d’usage', 'bad');
+    }
+  };
+
+  /** Usure liée à l'objet requis par une action (outil, tenue, transport…) */
+  G.wearReq = function (req) {
+    if (!req) return;
+    if (req.item) this.wearItem(req.item, 1, 3);
+    if (req.item2) this.wearItem(req.item2, 1, 3);
+  };
+
+  /** Kit de réparation : restaure un peu de durabilité à tout ce qui est usé */
+  G.repairInv = function (amount) {
+    var s = this.s, self = this, repaired = [];
+    if (!s.wear) return repaired;
+    Object.keys(s.wear).forEach(function (id) {
+      if (!s.inv[id]) return;
+      var before = s.wear[id];
+      s.wear[id] = Math.max(0, s.wear[id] - amount);
+      if (s.wear[id] !== before) repaired.push(id);
+      if (s.wear[id] <= 0) delete s.wear[id];
+    });
+    return repaired;
   };
 
   /* --------- affinité : −100 … +100 --------- */
@@ -374,6 +418,7 @@
   };
 
   G.afterAction = function (a) {
+    if (a) this.wearReq(a.req);
     NS.EV.maybeTrigger(a);
     this.checkMilestones();
     this.endOfDayGuard();
@@ -499,6 +544,7 @@
 
     var p = 20 + s.heat * 0.55 - this.lvl('discretion') * 1.5;
     if (s.flags.ghost) p -= 8;
+    if (this.has('radio')) p -= 6;
     if (!this.chance(p)) {
       this.log('Vous filez avant l’arrivée de la police. De justesse.', 'bad');
       return false;
@@ -1304,14 +1350,20 @@
 
   G.useItem = function (id) {
     var it = D.ITEM[id];
-    if (!it || !it.use || !this.has(id)) return;
-    Object.keys(it.use).forEach(function (k) {
+    if (!it || (!it.use && !it.repairAll) || !this.has(id)) return;
+    if (it.use) Object.keys(it.use).forEach(function (k) {
       if (k === 'xp') { this.xp(it.use.xp[0], it.use.xp[1]); return; }
       this.add(k, it.use[k]);
     }, this);
     if (it.addictRisk && this.chance(it.addictRisk)) this.flag('addict', (this.s.flags.addict || 0) + 1);
+    var repaired = it.repairAll ? this.repairInv(it.repairAll) : [];
     this.take(id, 1);
-    this.log('Vous utilisez ' + it.ico + ' <b>' + it.n + '</b>.', 'good');
+    if (it.repairAll) {
+      this.log('Vous utilisez ' + it.ico + ' <b>' + it.n + '</b>' +
+        (repaired.length ? ' sur ' + repaired.length + ' objet' + (repaired.length > 1 ? 's' : '') + ' usé' + (repaired.length > 1 ? 's' : '') + '.' : ', mais rien n’en avait vraiment besoin.'), 'good');
+    } else {
+      this.log('Vous utilisez ' + it.ico + ' <b>' + it.n + '</b>.', 'good');
+    }
     if (!this._q) NS.UI.toast(it.ico + ' ' + it.n + ' utilisé', 'good');
     this.checkEnd();
     NS.UI.refresh(); S.save(this.s);

@@ -372,10 +372,72 @@
       d: 'Fonder une affaire, en racheter une déjà lancée, céder la vôtre. Les prix suivent le marché — ils ne le suivent jamais longtemps dans le même sens.',
       req: {},
       sessions: []
+    },
+    {
+      id: 'souscave', n: 'La Cave', ico: '🕶️', when: 'night', underground: true,
+      d: 'On y entre par une porte sans enseigne. Combats à mains nues, paris tenus à la voix, et des types qui cherchent quelqu’un pour un travail.',
+      req: { repRue: 12, flag: 'knowsCave' },
+      sessions: []
     }
   ];
   D.VENUE = {};
   D.VENUES.forEach(function (v) { D.VENUE[v.id] = v; });
+
+  /* ---------------------------------------------------------
+     LA CAVE — combats, paris, missions. Uniquement la nuit.
+     --------------------------------------------------------- */
+  D.FIGHTS = [
+    { id: 'bagarreur', n: 'Bagarreur du coin', ico: '🥊', stake: 40, mult: 2.2, forceReq: 0, sentence: 4,
+      d: 'Un habitué, plus lent qu’il n’en a l’air.' },
+    { id: 'videur', n: 'Videur de boîte', ico: '🥋', stake: 120, mult: 2.6, forceReq: 3, sentence: 8,
+      d: 'Costaud, méthodique. Il a déjà cassé des nez ici.' },
+    { id: 'champion', n: 'Champion du sous-sol', ico: '🏆', stake: 400, mult: 3.2, forceReq: 6, sentence: 14,
+      d: 'Invaincu depuis six mois. Le battre rapporte gros — le perdre aussi, mais dans l’autre sens.' }
+  ];
+  D.FIGHT = {};
+  D.FIGHTS.forEach(function (f) { D.FIGHT[f.id] = f; });
+
+  D.PARIS = [
+    {
+      id: 'des', n: 'Dés', ico: '🎲', min: 10, max: 2000,
+      d: 'Pair ou impair sur deux dés. La maison garde un léger avantage.',
+      choices: [{ id: 'pair', l: 'Pair' }, { id: 'impair', l: 'Impair' }],
+      play: function (G, bet, choice) {
+        var roll = G.rnd(1, 6) + G.rnd(1, 6);
+        var isPair = roll % 2 === 0;
+        var win = (choice === 'pair') === isPair;
+        return { win: win ? Math.round(bet * 0.91) : -bet, m: 'Le total tombe sur ' + roll + '.' };
+      }
+    },
+    {
+      id: 'combat', n: 'Parier sur un combat', ico: '👊', min: 10, max: 3000,
+      d: 'Vous ne montez pas sur le ring, vous misez sur celui qui y est. L’outsider paie beaucoup plus.',
+      choices: [{ id: 'favori', l: 'Le favori' }, { id: 'outsider', l: 'L’outsider' }],
+      play: function (G, bet, choice) {
+        var favoriWins = G.chance(62);
+        var win = (choice === 'favori') === favoriWins;
+        var mult = choice === 'favori' ? 0.65 : 2.5;
+        return {
+          win: win ? Math.round(bet * mult) : -bet,
+          m: favoriWins ? 'Le favori l’emporte, sans surprise.' : 'L’outsider renverse la salle.'
+        };
+      }
+    }
+  ];
+  D.PARI = {};
+  D.PARIS.forEach(function (p) { D.PARI[p.id] = p; });
+
+  /* Missions : petits travaux du milieu, résolus comme un délit (crimeRoll + arrestCheck) */
+  D.MISSION_POOL = [
+    { id: 'guet', n: 'Faire le guet', ico: '👀', hours: 3, energy: 14, pay: [80, 150], sentence: 6, heat: 6, req: { repRue: 10 } },
+    { id: 'colis', n: 'Récupérer un colis', ico: '📦', hours: 2, energy: 10, pay: [120, 220], sentence: 10, heat: 8, req: { repRue: 15 } },
+    { id: 'dette', n: 'Rappeler une dette', ico: '💢', hours: 3, energy: 20, pay: [150, 280], sentence: 14, heat: 10, req: { force: 3, repPegre: 10 } },
+    { id: 'transfert', n: 'Convoyer un sac fermé', ico: '🎒', hours: 4, energy: 16, pay: [200, 380], sentence: 18, heat: 12, req: { repPegre: 15 } },
+    { id: 'filature', n: 'Filature discrète', ico: '🕵️', hours: 3, energy: 12, pay: [100, 190], sentence: 5, heat: 5, req: { discretion: 3 } },
+    { id: 'intimidation', n: 'Faire passer un message', ico: '🗯️', hours: 2, energy: 18, pay: [110, 200], sentence: 12, heat: 9, req: { force: 2, repRue: 18 } }
+  ];
+  D.MISSIONI = {};
+  D.MISSION_POOL.forEach(function (m) { D.MISSIONI[m.id] = m; });
 
   /* Conditions d'entrée du casino */
   D.CASINO_REQ = { app: 35 };

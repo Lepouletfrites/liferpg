@@ -261,6 +261,136 @@
   };
 
   /* =========================================================
+     2bis-b. La Cave — combats, paris, missions (nuit uniquement)
+     ========================================================= */
+  G.fightLock = function (f) {
+    if (this.s.jail || this.s.hospital) return 'Indisponible';
+    if (f.forceReq && this.lvl('force') < f.forceReq) return 'Force ' + f.forceReq + ' requise';
+    if (!this.canPay(f.stake)) return 'Mise de ' + this.eur(f.stake) + ' requise';
+    if (S.hoursLeft(this.s) < 2) return 'Pas assez de temps';
+    return null;
+  };
+
+  G.doFight = function (id) {
+    var f = D.FIGHT[id];
+    if (!f) return;
+    var lock = this.fightLock(f);
+    if (lock) { NS.UI.toast(lock, 'bad'); return; }
+    if (!this.spend(f.stake, 'Mise — ' + f.n)) { NS.UI.toast('Mise impossible', 'bad'); return; }
+
+    this.spendTime(2); this.spendEnergy(22);
+    this.s.totals.actions++;
+
+    var p = clamp(38 + this.lvl('force') * 7 - f.forceReq * 5 + (this.s.gauges.sante - 50) * 0.15, 8, 88);
+    if (this.chance(p)) {
+      var gain = Math.round(f.stake * f.mult);
+      this.cash(gain, 'Combat gagné — ' + f.n);
+      this.add('sante', -this.rnd(4, 10));
+      this.rep('rue', 3);
+      this.xp('force', 14);
+      this.log('<b>' + f.n + '</b> — victoire. ' + this.eur(gain) + ' empochés.', 'money');
+      if (!this._q) NS.UI.toast('🥊 Victoire — +' + this.eur(gain), 'money');
+    } else {
+      this.add('sante', -this.rnd(14, 28));
+      this.add('moral', -8);
+      this.rep('rue', 1);
+      this.log('<b>' + f.n + '</b> — défaite. La mise est perdue, et vous encaissez.', 'bad');
+      if (!this._q) NS.UI.toast('🥊 Défaite', 'bad');
+      if (this.chance(12)) this.arrestCheck('coups et blessures volontaires', f.sentence);
+    }
+    this.checkEnd();
+    this.afterAction(f);
+  };
+
+  G.betLock = function (m) {
+    if (!this.canPay(m.min)) return 'Mise minimale de ' + this.eur(m.min);
+    if (S.hoursLeft(this.s) < 1) return 'Plus de temps aujourd’hui';
+    return null;
+  };
+
+  G.maxParisBet = function (m) { return Math.max(0, Math.min(m.max, Math.floor(S.spendable(this.s)))); };
+
+  G.placeBet = function (id, bet, choice) {
+    var m = D.PARI[id];
+    if (!m) return;
+    var lock = this.betLock(m);
+    if (lock) { NS.UI.toast(lock, 'bad'); return; }
+
+    bet = Math.round(Math.max(m.min, Math.min(bet, this.maxParisBet(m))));
+    if (!this.spend(bet, 'Mise — ' + m.n)) { NS.UI.toast('Mise impossible', 'bad'); return; }
+
+    this.spendTime(1); this.spendEnergy(4);
+    this.s.totals.actions++;
+    this.hist('gamble');
+
+    var res = m.play(this, bet, choice) || { win: -bet, m: '' };
+    var net = Math.round(res.win);
+    if (net > 0) { this.cash(bet + net, 'Gain — ' + m.n); this.hist('gambleWin'); }
+    else if (net === 0) this.cash(bet, 'Mise rendue');
+    else this.hist('gambleLoss');
+
+    var label = net > 0 ? '+' + this.eur(net) : (net === 0 ? 'mise rendue' : '−' + this.eur(-net));
+    this.log('<b>' + m.ico + ' ' + m.n + '</b> — mise ' + this.eur(bet) + ' · <b>' + label + '</b>. ' + res.m,
+      net > 0 ? 'money' : (net === 0 ? 'neutral' : 'bad'));
+    if (!this._q) NS.UI.toast(m.ico + ' ' + label, net > 0 ? 'money' : (net === 0 ? 'neutral' : 'bad'));
+    this.rep('pegre', 0.4);
+    this.checkEnd();
+    this.afterAction(m);
+  };
+
+  G.refreshMissions = function () {
+    var s = this.s;
+    var pool = D.MISSION_POOL.slice();
+    var picks = [];
+    for (var i = 0; i < 3 && pool.length; i++) {
+      var idx = Math.floor(Math.random() * pool.length);
+      picks.push(pool.splice(idx, 1)[0].id);
+    }
+    s.missions = picks;
+    s.missionsDay = s.day;
+  };
+
+  G.missionLock = function (m) {
+    var r = this.checkReq(m.req);
+    if (r) return r;
+    if (m.hours > S.hoursLeft(this.s)) return 'Pas assez de temps';
+    return null;
+  };
+
+  G.doMission = function (id) {
+    var m = D.MISSIONI[id];
+    if (!m) return;
+    var lock = this.missionLock(m);
+    if (lock) { NS.UI.toast(lock, 'bad'); return; }
+
+    this.spendTime(m.hours); this.spendEnergy(m.energy);
+    this.s.totals.actions++; this.s.totals.crimes++; this.hist('crime');
+
+    this._crime = { id: 'mission_' + m.id, sentence: m.sentence };
+    var roll = this.crimeRoll(58, { discretion: 2, force: m.id === 'dette' || m.id === 'intimidation' ? 2 : 0 });
+    this._crime = null;
+
+    if (roll.win) {
+      var pay = this.rnd(m.pay[0], m.pay[1]);
+      this.dirtyCash(pay, m.n);
+      this.heat(roll.heat * 0.6);
+      this.rep('pegre', 3);
+      this.log('<b>' + m.n + '</b> — mission réussie. ' + this.eur(pay) + ' d’argent sale.', 'money');
+      if (!this._q) NS.UI.toast('✅ ' + m.n + ' — ' + this.eur(pay), 'good');
+    } else {
+      this.heat(roll.heat);
+      this.log('<b>' + m.n + '</b> — ça tourne mal.', 'bad');
+      if (!this._q) NS.UI.toast('❌ ' + m.n + ' ratée', 'bad');
+      this.arrestCheck(m.n.toLowerCase(), m.sentence);
+    }
+
+    var idx = this.s.missions.indexOf(id);
+    if (idx !== -1) this.s.missions.splice(idx, 1);
+    this.checkEnd();
+    this.afterAction(m);
+  };
+
+  /* =========================================================
      2ter. Planque à domicile
      ========================================================= */
   G.stashIn = function (amount) {

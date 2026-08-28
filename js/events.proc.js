@@ -96,6 +96,17 @@
   /* =========================================================
      3. Contexte : la lecture de votre situation
      ========================================================= */
+  function mostWornItem(s) {
+    var id = null, worst = 0;
+    Object.keys(s.wear || {}).forEach(function (k) {
+      var it = D.ITEM[k];
+      if (!it || !it.durability) return;
+      var pct = s.wear[k] / it.durability;
+      if (pct > worst) { worst = pct; id = k; }
+    });
+    return worst >= 0.55 ? id : null;
+  }
+
   P.context = function (G) {
     var s = G.s, h = S.home(s);
     return {
@@ -127,7 +138,11 @@
       sante: s.gauges.sante,
       moral: s.gauges.moral,
       faim: s.gauges.faim,
-      day: s.day
+      day: s.day,
+      wornItem: mostWornItem(s),
+      debt: S.debtTotal(s),
+      addict: s.flags.addict || 0,
+      caveKnown: s.rep.rue >= 12 && !s.flags.knowsCave
     };
   };
 
@@ -263,8 +278,11 @@
             {
               l: 'Tenir jusqu’au matin', h: 'Gratuit, coûteux autrement',
               run: function (G) {
-                G.add('sante', -12); G.add('moral', -8); G.add('hygiene', -8);
-                return 'Vous ne dormez pas vraiment. Vous attendez, ce qui n’est pas la même chose.';
+                var brolly = G.has('parapluie');
+                G.add('sante', brolly ? -5 : -12); G.add('moral', brolly ? -3 : -8); G.add('hygiene', brolly ? -3 : -8);
+                if (brolly) G.wearItem('parapluie', 2, 5);
+                return brolly ? 'Le parapluie tient le pire à distance. Une mauvaise nuit, pas une nuit dangereuse.'
+                  : 'Vous ne dormez pas vraiment. Vous attendez, ce qui n’est pas la même chose.';
               }
             },
             {
@@ -1218,6 +1236,224 @@
               }
             } : null)
           ].filter(Boolean)
+        };
+      }
+    },
+
+    /* ─────────── OBJETS ─────────── */
+    {
+      id: 'p_item_wear', when: 'any',
+      weight: function (c) { return c.wornItem ? 8 : 0; },
+      build: function (G, c) {
+        var it = D.ITEM[c.wornItem];
+        if (!it) return null;
+        var health = Math.round(G.itemHealth(c.wornItem));
+        return {
+          ico: it.ico, title: it.n + ' commence à lâcher',
+          text: pick(G, [
+            'Une couture craque, une pièce grince, quelque chose ne va plus.',
+            'Ça tient encore, mais de moins en moins bien.',
+            'Vous remarquez l’usure d’un coup d’œil : ' + health + ' % d’état, tout au plus.'
+          ]),
+          choices: [
+            {
+              l: 'Forcer un peu plus', h: 'Gratuit, risqué',
+              run: function (G) {
+                G.wearItem(c.wornItem, 4, 10);
+                return G.has(c.wornItem) ? 'Vous continuez à vous en servir. Ça grince, mais ça tient encore.'
+                  : 'Cette fois, ' + it.n + ' rend l’âme entre vos mains.';
+              }
+            },
+            { l: 'Ménager l’objet aujourd’hui', h: 'Prudence', run: function (G) { G.add('moral', 1); return 'Vous le rangez pour aujourd’hui. Mieux vaut ça que de le perdre pour de bon.'; } },
+            (G.has('reparation') ? {
+              l: 'Utiliser un kit de réparation', h: 'Consomme le kit',
+              run: function (G) { G.useItem('reparation'); return 'Vous rafistolez ce qui peut l’être.'; }
+            } : null)
+          ].filter(Boolean)
+        };
+      }
+    },
+
+    /* ─────────── MILIEU : LA CAVE ─────────── */
+    {
+      id: 'p_cave_tip', when: 'night',
+      weight: function (c) { return c.caveKnown ? 6 : 0; },
+      build: function (G, c) {
+        var n = who(G);
+        return {
+          ico: '🕶️', title: 'Une adresse qu’on ne donne pas à tout le monde',
+          text: cap(n) + ' vous glisse un mot ' + ou(G, c) + ' : « Il y a un endroit, pas loin. On y descend après minuit. ' +
+            'On y parie, on s’y bat, on y trouve du travail — le genre qu’on ne demande pas deux fois. »',
+          choices: [
+            { l: 'Noter l’adresse', h: 'Débloque La Cave', run: function (G) { G.flag('knowsCave', true); G.xp('discretion', 6); return 'Vous retenez l’adresse. Ce genre de porte ne se rouvre pas si on l’oublie.'; } },
+            { l: 'Ne pas s’en mêler', h: 'Prudence', run: function (G) { return 'Vous laissez filer. Certaines portes, mieux vaut ne jamais les trouver.'; } }
+          ]
+        };
+      }
+    },
+
+    /* ─────────── ARGENT : DETTES & DÉPENDANCE ─────────── */
+    {
+      id: 'p_debt_collector', when: 'any',
+      weight: function (c) { return c.debt > 500 ? 6 : 0; },
+      build: function (G, c) {
+        var n = who(G);
+        return {
+          ico: '💳', title: 'On vous réclame votre dû',
+          text: cap(n) + ' vous aborde ' + ou(G, c) + ' avec un ton qui ne laisse pas de place à la discussion : « On sait ce que vous devez. On aimerait un geste. »',
+          choices: [
+            {
+              l: 'Payer un acompte', h: scaled(G, 80, { min: 30 }) + ' € — geste de bonne foi',
+              run: function (G) {
+                var amt = scaled(G, 80, { min: 30 });
+                if (!G.spend(amt, 'Acompte')) return 'Vous n’avez rien à donner. Le silence qui suit n’est pas bon signe.';
+                G.add('moral', -4);
+                return G.eur(amt) + ' de plus dans la balance. Ça n’efface rien, mais ça calme un peu le jeu.';
+              }
+            },
+            { l: 'Promettre pour bientôt', h: 'Gagner du temps', run: function (G) { G.add('moral', -6); G.heat(3); return '« Bientôt » ne veut jamais rien dire pour ces gens-là. Ils reviendront, et plus vite que vous ne l’espérez.'; } },
+            {
+              l: 'Envoyer balader', h: 'Force — risqué', risky: true,
+              run: function (G) {
+                if (G.chance(30 + G.lvl('force') * 6)) { G.rep('rue', 4); return 'Le ton monte, mais vous ne cédez pas un pouce. Ils repartent en marmonnant.'; }
+                G.add('sante', -22); G.add('moral', -12);
+                return 'Mauvaise idée. Vous le comprenez tout de suite après le premier coup.';
+              }
+            }
+          ]
+        };
+      }
+    },
+
+    {
+      id: 'p_addiction_pull', when: 'any',
+      weight: function (c) { return c.addict > 0 ? 5 + c.addict * 2 : 0; },
+      build: function (G, c) {
+        return {
+          ico: '🩸', title: 'Le manque revient',
+          text: pick(G, [
+            'Une pensée fixe, obsédante, qui ne laisse pas de place à autre chose.',
+            'Vos mains tremblent un peu. Vous savez pourquoi.',
+            'Vous repassez devant le même coin de rue trois fois, sans vraiment le décider.'
+          ]),
+          choices: [
+            {
+              l: 'Céder', h: 'Cher, et ça n’arrange rien',
+              run: function (G) {
+                var costAmt = scaled(G, 40, { min: 15 });
+                if (!G.spend(costAmt, 'Manque')) { G.add('moral', -14); return 'Vous n’avez même pas de quoi. La journée s’annonce longue.'; }
+                G.add('moral', 10); G.add('sante', -6);
+                return 'Le manque se tait un moment. Il reviendra, un peu plus fort.';
+              }
+            },
+            {
+              l: 'Tenir bon', h: 'Discipline — dur',
+              run: function (G) {
+                if (G.chance(35 + G.lvl('discretion') * 3)) { G.add('moral', -6); G.flag('addict', Math.max(0, c.addict - 1)); return 'Vous serrez les dents. Ça passe, cette fois — et le manque recule un peu.'; }
+                G.add('moral', -18); G.add('sante', -8);
+                return 'Vous tenez une heure, puis deux, puis vous craquez de toute façon.';
+              }
+            }
+          ]
+        };
+      }
+    },
+
+    /* ─────────── TRANSPORT ─────────── */
+    {
+      id: 'p_transport', when: 'day',
+      weight: function () { return 6; },
+      build: function (G, c) {
+        var variant = G.rnd(1, 100);
+        if (variant <= 40) {
+          return {
+            ico: '🚇', title: 'Contrôle dans la rame',
+            text: 'Deux agents remontent le wagon, méthodiques. Vous n’avez pas validé.',
+            choices: [
+              { l: 'Payer l’amende', h: scaled(G, 45, { min: 20 }) + ' €', run: function (G) { var f = scaled(G, 45, { min: 20 }); G.spend(f, 'Amende'); return 'Vous payez sans discuter. ' + G.eur(f) + ' de moins, et vous continuez votre trajet.'; } },
+              {
+                l: 'Filer à la prochaine station', h: 'Discrétion', risky: true,
+                run: function (G) {
+                  if (G.chance(45 + G.lvl('discretion') * 5)) return 'Vous vous glissez hors du wagon juste avant qu’ils n’arrivent à vous.';
+                  var f = scaled(G, 90, { min: 40 }); G.spend(f, 'Amende majorée'); G.heat(4);
+                  return 'Repéré en pleine fuite. L’amende double, et votre nom est noté.';
+                }
+              }
+            ]
+          };
+        }
+        if (variant <= 70) {
+          return {
+            ico: '🚌', title: 'Malaise dans le bus',
+            text: pick(G, ['Une passagère perd connaissance quelques rangs devant vous.', 'Un homme âgé titube et s’effondre contre la vitre.']),
+            choices: [
+              { l: 'Intervenir', h: 'Peut rapporter de la reconnaissance', run: function (G) { G.rep('legale', 3); G.add('moral', 6); G.hist('helped'); return 'Vous gérez la situation jusqu’à l’arrivée des secours. Les autres passagers vous regardent différemment.'; } },
+              { l: 'Laisser faire', h: 'Rien', run: function (G) { return 'D’autres s’en occupent. Vous descendez à votre arrêt comme prévu.'; } }
+            ]
+          };
+        }
+        return {
+          ico: '🚕', title: 'Une place de libre',
+          text: 'Un taxi s’arrête à votre hauteur sans que vous ayez levé la main. Le chauffeur baisse la vitre : « Ça vous dit, une course pas chère ? »',
+          choices: [
+            { l: 'Monter', h: scaled(G, 12, { min: 6 }) + ' € — gagne du temps', run: function (G) { var costAmt = scaled(G, 12, { min: 6 }); if (!G.spend(costAmt, 'Course')) return 'Vous fouillez vos poches. Rien à faire, vous continuez à pied.'; G.add('energie', 8); return 'Dix minutes plus tard, vous êtes exactement où vous vouliez être.'; } },
+            { l: 'Décliner', h: 'Rien', run: function (G) { return 'Vous continuez à pied. Le taxi repart chercher un autre client.'; } }
+          ]
+        };
+      }
+    },
+
+    /* ─────────── FAMILLE ─────────── */
+    {
+      id: 'p_family', when: 'any',
+      weight: function (c) { return c.day > 8 ? 4 : 0; },
+      build: function (G, c) {
+        if (G.chance(45)) {
+          return {
+            ico: '📞', title: 'Un appel manqué',
+            text: 'Un numéro que vous connaissez par cœur, sans jamais l’avoir enregistré. Vous n’avez pas décroché à temps.',
+            choices: [
+              { l: 'Rappeler', h: 'Reprendre contact', run: function (G) { var good = G.chance(50); G.add('moral', good ? 10 : -10); return good ? 'La conversation est courte, mais moins froide que vous ne l’imaginiez.' : 'Les mêmes reproches, dans le même ordre que d’habitude.'; } },
+              { l: 'Ne pas rappeler', h: 'Éviter', run: function (G) { G.add('moral', -4); return 'Vous regardez l’écran s’éteindre. Vous vous direz que vous rappellerez demain.'; } }
+            ]
+          };
+        }
+        return {
+          ico: '✉️', title: 'Une lettre sans adresse d’expéditeur',
+          text: 'L’écriture est reconnaissable entre mille. À l’intérieur, quelques lignes, et rien de plus.',
+          choices: [
+            { l: 'La lire en entier', h: 'Émotionnel', run: function (G) { G.add('moral', G.rndF(-8, 12)); return 'Vous la relisez deux fois avant de la ranger. Certaines phrases resteront un moment.'; } },
+            { l: 'La garder pour plus tard', h: 'Reporter', run: function (G) { return 'Vous la glissez dans votre sac. Vous la lirez quand vous serez prêt.'; } }
+          ]
+        };
+      }
+    },
+
+    /* ─────────── ENTREPRISE : CONCURRENCE ─────────── */
+    {
+      id: 'p_rival_biz', when: 'day',
+      weight: function (c) { return c.biz > 0 ? 6 : 0; },
+      build: function (G, c) {
+        var b = G.pick(G.s.biz);
+        var d = D.BIZI[b.id];
+        if (!d) return null;
+        var name = G.bizName(b);
+        return {
+          ico: '⚔️', title: 'Un concurrent s’installe',
+          text: 'Une enseigne quasi identique à la vôtre ouvre à quelques rues de ' + name + '. Les prix affichés sont agressifs.',
+          choices: [
+            { l: 'Baisser les prix pour tenir', h: 'Coûte en santé d’activité', run: function (G) { b.health = Math.max(0, b.health - 15); return 'Vous rognez vos marges pour ne pas perdre de clientèle. ' + name + ' encaisse le choc.'; } },
+            {
+              l: 'Miser sur la qualité', h: 'Investir un peu',
+              run: function (G) {
+                var costAmt = scaled(G, 200, { min: 80 });
+                if (!G.spend(costAmt, 'Amélioration — ' + name)) return 'Vous n’avez pas de quoi investir maintenant. Vous encaissez la concurrence sans réagir.';
+                b.health = Math.min(100, b.health + 10);
+                return 'Vous misez sur ce que le concurrent ne peut pas copier du jour au lendemain : la réputation.';
+              }
+            },
+            { l: 'Ignorer', h: 'Rien', run: function (G) { return 'Vous laissez faire. La clientèle fidèle ne bouge pas si facilement.'; } }
+          ]
         };
       }
     }

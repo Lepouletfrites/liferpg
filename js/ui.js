@@ -1339,6 +1339,7 @@
       var vlock = G.venueLock(v);
       if (vlock) { h.push('<div class="banner banner--warn">🔒 ' + esc(vlock) + '</div>'); return h.join(''); }
       if (v.market) { h.push(renderBourseBody()); return h.join(''); }
+      if (v.underground) { h.push(renderUndergroundBody()); return h.join(''); }
       h.push(cardsWithLocked(v.sessions, function (sess) {
         var lk = G.sessionLock(v, sess);
         return {
@@ -1372,6 +1373,13 @@
         return {
           ico: v.ico, title: v.n, desc: v.d, accent: 'var(--gold)',
           costs: [cost(G.s.biz.length + ' possédée' + (G.s.biz.length > 1 ? 's' : ''), 'cost--pay'), cost(D.BIZ.length + ' secteurs', 'cost--time')],
+          lock: lk, act: 'venueopen', arg: v.id
+        };
+      }
+      if (v.underground) {
+        return {
+          ico: v.ico, title: v.n, desc: v.d, accent: 'var(--danger)',
+          costs: [cost('🌙 Nuit uniquement', 'cost--night'), cost('Combats · Paris · Missions', 'cost--risk')],
           lock: lk, act: 'venueopen', arg: v.id
         };
       }
@@ -1432,6 +1440,99 @@
       h.push('<div class="btnRow"><button class="btn btn--ghost btn--sm" data-act="bizsell">💱 Céder une entreprise</button></div>');
     }
     return h.join('');
+  }
+
+  /** La Cave : combats à mains nues, paris clandestins, missions du milieu */
+  function renderUndergroundBody() {
+    var s = G.s, h = [];
+    if (!s.missions.length || s.day - (s.missionsDay || 0) >= 3) G.refreshMissions();
+
+    h.push('<div class="banner banner--crime">🕶️ Ce qui se passe ici n’est couvert par aucune loi. ' +
+      'Pression policière <b>' + Math.round(s.heat) + ' %</b> · Casier <b>' + s.casier + '</b></div>');
+
+    h.push(sectionTitle('Combats à mains nues'));
+    h.push(hint('Une mise, un adversaire, et votre force contre la sienne. Perdre coûte de la santé — et parfois plus que ça.'));
+    h.push(cardsWithLocked(D.FIGHTS, function (f) {
+      var lock = G.fightLock(f);
+      return {
+        ico: f.ico, title: f.n, desc: f.d, accent: 'var(--danger)',
+        costs: [cost('⏱ 2 h', 'cost--time'), cost('Mise ' + eur(f.stake), 'cost--price'),
+        cost('× ' + f.mult + ' si victoire', 'cost--pay'),
+        f.forceReq ? cost('💪 Force ' + f.forceReq) : null],
+        lock: lock, act: 'fight', arg: f.id
+      };
+    }, 'Hors de portée pour l’instant'));
+
+    h.push(sectionTitle('Paris clandestins'));
+    h.push(hint('On mise sur ce qu’on ne contrôle pas. La maison garde toujours un avantage discret.'));
+    h.push('<div class="cards">' + D.PARIS.map(function (m) {
+      return card({
+        ico: m.ico, title: m.n, desc: m.d, accent: 'var(--gold)',
+        costs: [cost('dès ' + eur(m.min), 'cost--price')],
+        act: 'parisopen', arg: m.id
+      });
+    }).join('') + '</div>');
+
+    h.push(sectionTitle('Missions du milieu'));
+    h.push(hint('Trois propositions, renouvelées tous les trois jours. Chacune se résout comme un délit : ' +
+      'une chance de réussite, une peine encourue si ça tourne mal.'));
+    if (!s.missions.length) {
+      h.push(empty('🕶️', 'Rien à proposer ce soir. Repassez plus tard.'));
+    } else {
+      h.push(cardsWithLocked(s.missions.map(function (id) { return D.MISSIONI[id]; }), function (m) {
+        var lock = G.missionLock(m);
+        var pv = lock ? null : NS.PROBE.preview('mission', m.id, {
+          hours: m.hours, energy: m.energy,
+          exec: function (g) {
+            g._crime = { id: 'mission_' + m.id, sentence: m.sentence };
+            var roll = g.crimeRoll(58, { discretion: 2, force: m.id === 'dette' || m.id === 'intimidation' ? 2 : 0 });
+            g._crime = null;
+            if (roll.win) { g.dirtyCash(g.rnd(m.pay[0], m.pay[1]), m.n); g.heat(roll.heat * 0.6); }
+            else { g.heat(roll.heat); g.arrestCheck(m.n.toLowerCase(), m.sentence); }
+            return roll;
+          }
+        });
+        return {
+          ico: m.ico, title: m.n, accent: 'var(--danger)',
+          gains: lock ? '' : gainChips(pv),
+          costs: [cost('⏱ ' + m.hours + ' h', 'cost--time'),
+          cost(eur(m.pay[0]) + '–' + eur(m.pay[1]), 'cost--risk'),
+          cost('⚖️ ' + m.sentence + ' j encourus', 'cost--risk')],
+          lock: lock, act: 'mission', arg: m.id
+        };
+      }, 'Hors de portée pour l’instant'));
+    }
+    return h.join('');
+  }
+
+  /** Mise pour un pari clandestin, puis choix (pair/impair, favori/outsider…) */
+  function parisPrompt(m) {
+    var max = G.maxParisBet(m);
+    var acts = D.BET_STEPS.map(function (r) {
+      var v = Math.max(m.min, Math.round(max * r));
+      return {
+        l: 'Miser ' + eur(v),
+        h: r === 1 ? 'Tout ce que vous pouvez' : Math.round(r * 100) + ' % de vos moyens',
+        locked: v > max ? 'Au-dessus de vos moyens' : null,
+        fn: function () { parisChoice(m, v); }
+      };
+    });
+    acts.push({ l: 'Annuler', h: '', fn: null });
+    UI.modal({
+      ico: m.ico, title: m.n,
+      body: '<p>' + m.d + '</p><div class="panel mt">' +
+        kv('Mise minimale', eur(m.min)) + kv('Mise maximale', eur(m.max)) +
+        kv('Disponible', eur(S.spendable(G.s))) + '</div>',
+      actions: acts
+    });
+  }
+
+  function parisChoice(m, bet) {
+    var acts = m.choices.map(function (c) {
+      return { l: c.l, h: 'Mise de ' + eur(bet), fn: function () { G.placeBet(m.id, bet, c.id); } };
+    });
+    acts.push({ l: 'Annuler', h: '', fn: null });
+    UI.modal({ ico: m.ico, title: 'Sur quoi misez-vous ?', body: '<p>Mise de <b>' + eur(bet) + '</b>.</p>', actions: acts });
   }
 
   /** Pastilles d'effet d'une séance, lues directement dans sa définition */
@@ -1720,15 +1821,18 @@
       else h.push('<div class="cards">' + ids.map(function (id) {
         var it = D.ITEM[id];
         if (!it) return '';
+        var health = it.durability ? G.itemHealth(id) : null;
+        var wearDesc = it.repairAll ? it.d : (it.use ? 'Utiliser : ' + Object.keys(it.use).map(function (k) {
+          return k === 'xp' ? '+' + it.use.xp[1] + ' XP ' + it.use.xp[0] : (it.use[k] > 0 ? '+' : '') + it.use[k] + ' ' + k;
+        }).join(', ') : it.d);
         return card({
-          ico: it.ico, title: it.n + ' <span class="tag">×' + s.inv[id] + '</span>',
-          desc: it.use ? 'Utiliser : ' + Object.keys(it.use).map(function (k) {
-            return k === 'xp' ? '+' + it.use.xp[1] + ' XP ' + it.use.xp[0] : (it.use[k] > 0 ? '+' : '') + it.use[k] + ' ' + k;
-          }).join(', ') : it.d,
-          accent: sellMode ? 'var(--gold)' : (it.use ? 'var(--good)' : 'var(--line)'),
-          costs: [cost(sellMode ? '💱 Appuyer pour revendre' : (it.use ? 'Appuyer pour utiliser' : 'Objet durable')),
+          ico: it.ico, title: it.n + ' <span class="tag">×' + s.inv[id] + '</span>' +
+            (health !== null ? '<span class="tag' + (health < 30 ? ' tag--bad' : '') + '">🔧 ' + Math.round(health) + ' %</span>' : ''),
+          desc: wearDesc,
+          accent: sellMode ? 'var(--gold)' : ((it.use || it.repairAll) ? 'var(--good)' : 'var(--line)'),
+          costs: [cost(sellMode ? '💱 Appuyer pour revendre' : ((it.use || it.repairAll) ? 'Appuyer pour utiliser' : 'Objet durable')),
           sellMode ? cost('Revente : ' + eur(it.price * (it.cat === 'luxe' ? 0.9 : 0.5)), 'cost--price') : null],
-          act: it.use ? 'use' : 'sell', arg: id
+          act: (it.use || it.repairAll) ? 'use' : 'sell', arg: id
         });
       }).join('') + '</div>');
       if (ids.length) h.push('<div class="btnRow"><button class="btn ' + (sellMode ? 'btn--gold' : 'btn--ghost') +
@@ -2269,6 +2373,9 @@
     bizhire: function (arg) { G.hireStaff(parseInt(arg, 10)); },
     bizfire: function (arg) { G.fireStaff(parseInt(arg, 10)); },
     bizbuylisting: function (arg) { G.buyBizListing(parseInt(arg, 10)); },
+    fight: function (arg) { G.doFight(arg); },
+    parisopen: function (arg) { parisPrompt(D.PARI[arg]); },
+    mission: function (arg) { G.doMission(arg); },
     bizsell: function () {
       var acts = G.s.biz.map(function (b) {
         var d = D.BIZI[b.id];

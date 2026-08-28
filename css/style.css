@@ -503,6 +503,7 @@ em{font-style:normal}
 .empty span{display:block;font-size:32px;margin-bottom:8px;opacity:.5}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .tag{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:3px 7px;border-radius:6px;background:var(--surface-3);color:var(--text-2);white-space:nowrap}
+.tag--bad{background:color-mix(in srgb, var(--danger) 22%, var(--surface-3));color:var(--danger)}
 .mt{margin-top:10px}
 .center{text-align:center}
 

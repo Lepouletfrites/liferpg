@@ -234,30 +234,33 @@ window.LifeRPG = window.LifeRPG || {};
     { id: 'carton', n: 'Carton & couverture', ico: '📦', cat: 'tool', shop: 'city', price: 9, keep: true, d: 'Dormir dehors sans y laisser sa santé.' },
     { id: 'duvet', n: 'Duvet grand froid', ico: '🛌', cat: 'tool', shop: 'city', price: 45, keep: true, d: 'Sommeil dehors nettement amélioré.' },
     { id: 'tente', n: 'Tente 2 places', ico: '⛺', cat: 'tool', shop: 'city', price: 120, keep: true, d: 'Débloque le campement sous le pont.' },
-    { id: 'seau', n: 'Seau & raclette', ico: '🪣', cat: 'tool', shop: 'city', price: 18, keep: true, d: 'Débloque le lavage de pare-brise.' },
-    { id: 'guitare', n: 'Guitare abîmée', ico: '🎸', cat: 'tool', shop: 'city', price: 55, keep: true, d: 'Débloque la manche musicale.' },
-    { id: 'sono', n: 'Enceinte & micro', ico: '🎤', cat: 'tool', shop: 'city', price: 190, keep: true, d: 'Transforme la manche en vrai concert de rue.' },
+    { id: 'parapluie', n: 'Parapluie solide', ico: '☂️', cat: 'tool', shop: 'city', price: 15, keep: true, durability: 30, d: 'Amortit le pire de la météo, dehors comme en déplacement.' },
+    { id: 'seau', n: 'Seau & raclette', ico: '🪣', cat: 'tool', shop: 'city', price: 18, keep: true, durability: 36, d: 'Débloque le lavage de pare-brise.' },
+    { id: 'guitare', n: 'Guitare abîmée', ico: '🎸', cat: 'tool', shop: 'city', price: 55, keep: true, durability: 42, d: 'Débloque la manche musicale.' },
+    { id: 'sono', n: 'Enceinte & micro', ico: '🎤', cat: 'tool', shop: 'city', price: 190, keep: true, durability: 60, d: 'Transforme la manche en vrai concert de rue.' },
     { id: 'sac', n: 'Sac à dos solide', ico: '🎒', cat: 'tool', shop: 'city', price: 30, keep: true, d: 'Vos affaires ne disparaissent plus la nuit.' },
-    { id: 'outils', n: 'Caisse à outils', ico: '🧰', cat: 'tool', shop: 'city', price: 95, keep: true, d: 'Débloque les dépannages rémunérés.' },
-    { id: 'appareil', n: 'Appareil photo', ico: '📷', cat: 'tool', shop: 'city', price: 320, keep: true, d: 'Débloque la photographie d’événements.' },
+    { id: 'outils', n: 'Caisse à outils', ico: '🧰', cat: 'tool', shop: 'city', price: 95, keep: true, durability: 48, d: 'Débloque les dépannages rémunérés.' },
+    { id: 'appareil', n: 'Appareil photo', ico: '📷', cat: 'tool', shop: 'city', price: 320, keep: true, durability: 45, d: 'Débloque la photographie d’événements.' },
+    { id: 'reparation', n: 'Kit de réparation', ico: '🩹', cat: 'tool', shop: 'city', price: 40, d: 'Consommable : répare un peu tout ce qui s’use dans votre sac.', repairAll: 25 },
 
     /* --- Tenues --- */
-    { id: 'fripes', n: 'Fripes correctes', ico: '👕', cat: 'tenue', shop: 'city', price: 22, keep: true, style: 28, d: 'On ne vous fuit plus dans le métro.' },
-    { id: 'propre', n: 'Tenue propre', ico: '👔', cat: 'tenue', shop: 'city', price: 85, keep: true, style: 48, d: 'Le minimum pour un entretien.' },
-    { id: 'pro', n: 'Tenue professionnelle', ico: '🥼', cat: 'tenue', shop: 'city', price: 260, keep: true, style: 68, d: 'Crédible dans un bureau.' },
-    { id: 'costume', n: 'Costume taillé', ico: '🤵', cat: 'tenue', shop: 'city', price: 1100, keep: true, style: 86, d: 'On vous écoute avant même de parler.' },
-    { id: 'hautecouture', n: 'Haute couture', ico: '🕶️', cat: 'tenue', shop: 'city', price: 6500, keep: true, style: 100, d: 'Vous êtes la référence.' },
+    { id: 'fripes', n: 'Fripes correctes', ico: '👕', cat: 'tenue', shop: 'city', price: 22, keep: true, style: 28, durability: 45, d: 'On ne vous fuit plus dans le métro.' },
+    { id: 'propre', n: 'Tenue propre', ico: '👔', cat: 'tenue', shop: 'city', price: 85, keep: true, style: 48, durability: 65, d: 'Le minimum pour un entretien.' },
+    { id: 'pro', n: 'Tenue professionnelle', ico: '🥼', cat: 'tenue', shop: 'city', price: 260, keep: true, style: 68, durability: 85, d: 'Crédible dans un bureau.' },
+    { id: 'costume', n: 'Costume taillé', ico: '🤵', cat: 'tenue', shop: 'city', price: 1100, keep: true, style: 86, durability: 110, d: 'On vous écoute avant même de parler.' },
+    { id: 'hautecouture', n: 'Haute couture', ico: '🕶️', cat: 'tenue', shop: 'city', price: 6500, keep: true, style: 100, durability: 140, d: 'Vous êtes la référence.' },
 
     /* --- Transport --- */
-    { id: 'velo', n: 'Vélo', ico: '🚲', cat: 'transport', shop: 'city', price: 110, keep: true, speed: 1, d: 'Débloque la livraison à vélo.' },
-    { id: 'scooter', n: 'Scooter', ico: '🛵', cat: 'transport', shop: 'city', price: 1400, keep: true, speed: 2, d: 'Certains quarts coûtent 1 h de moins. Utile pour filer.' },
-    { id: 'voiture', n: 'Voiture', ico: '🚗', cat: 'transport', shop: 'city', price: 9000, keep: true, speed: 3, d: 'Confort, image, mobilité. Et un coffre.' },
-    { id: 'berline', n: 'Berline de luxe', ico: '🏎️', cat: 'transport', shop: 'city', price: 48000, keep: true, speed: 4, d: 'Un actif, et un message.' },
+    { id: 'velo', n: 'Vélo', ico: '🚲', cat: 'transport', shop: 'city', price: 110, keep: true, speed: 1, durability: 55, d: 'Débloque la livraison à vélo.' },
+    { id: 'scooter', n: 'Scooter', ico: '🛵', cat: 'transport', shop: 'city', price: 1400, keep: true, speed: 2, durability: 85, d: 'Certains quarts coûtent 1 h de moins. Utile pour filer.' },
+    { id: 'voiture', n: 'Voiture', ico: '🚗', cat: 'transport', shop: 'city', price: 9000, keep: true, speed: 3, durability: 130, d: 'Confort, image, mobilité. Et un coffre.' },
+    { id: 'berline', n: 'Berline de luxe', ico: '🏎️', cat: 'transport', shop: 'city', price: 48000, keep: true, speed: 4, durability: 180, d: 'Un actif, et un message.' },
+    { id: 'casque', n: 'Casque intégral', ico: '🪖', cat: 'transport', shop: 'city', price: 60, keep: true, durability: 90, d: 'Réduit les accidents en scooter — les coursiers non casqués finissent souvent à l’hôpital.' },
 
     /* --- Tech --- */
-    { id: 'smartphone', n: 'Smartphone', ico: '📱', cat: 'tech', shop: 'city', price: 160, keep: true, tech: 1, d: 'Indispensable : applications, banque, bourse.' },
-    { id: 'ordi', n: 'Ordinateur portable', ico: '💻', cat: 'tech', shop: 'city', price: 700, keep: true, tech: 2, d: 'Formations en ligne, e-commerce, trading.' },
-    { id: 'serveur', n: 'Station de travail', ico: '🖥️', cat: 'tech', shop: 'city', price: 3200, keep: true, tech: 3, d: 'Puissance de calcul. Légale ou non.' },
+    { id: 'smartphone', n: 'Smartphone', ico: '📱', cat: 'tech', shop: 'city', price: 160, keep: true, tech: 1, durability: 90, d: 'Indispensable : applications, banque, bourse.' },
+    { id: 'ordi', n: 'Ordinateur portable', ico: '💻', cat: 'tech', shop: 'city', price: 700, keep: true, tech: 2, durability: 110, d: 'Formations en ligne, e-commerce, trading.' },
+    { id: 'serveur', n: 'Station de travail', ico: '🖥️', cat: 'tech', shop: 'city', price: 3200, keep: true, tech: 3, durability: 140, d: 'Puissance de calcul. Légale ou non.' },
 
     /* --- Luxe / patrimoine --- */
     { id: 'montre', n: 'Montre de luxe', ico: '⌚', cat: 'luxe', shop: 'city', price: 4500, keep: true, style: 6, d: 'Un actif qui se porte au poignet.' },
@@ -266,10 +269,11 @@ window.LifeRPG = window.LifeRPG || {};
     { id: 'bateau', n: 'Bateau à quai', ico: '🛥️', cat: 'luxe', shop: 'city', price: 90000, keep: true, d: 'Coûte cher, ne rapporte rien, dit tout.' },
 
     /* --- Marché parallèle --- */
-    { id: 'crochets', n: 'Jeu de crochets', ico: '🗝️', cat: 'crime', shop: 'street', price: 70, keep: true, d: 'Débloque le cambriolage.', req: { repRue: 15 } },
-    { id: 'gants', n: 'Gants & cagoule', ico: '🧤', cat: 'crime', shop: 'street', price: 30, keep: true, d: 'Moins de traces, moins de pression policière.', req: { repRue: 10 } },
-    { id: 'brouilleur', n: 'Brouilleur d’alarme', ico: '📡', cat: 'crime', shop: 'street', price: 850, keep: true, d: 'Neutralise la plupart des systèmes domestiques.', req: { repPegre: 20 } },
+    { id: 'crochets', n: 'Jeu de crochets', ico: '🗝️', cat: 'crime', shop: 'street', price: 70, keep: true, durability: 40, d: 'Débloque le cambriolage.', req: { repRue: 15 } },
+    { id: 'gants', n: 'Gants & cagoule', ico: '🧤', cat: 'crime', shop: 'street', price: 30, keep: true, durability: 55, d: 'Moins de traces, moins de pression policière.', req: { repRue: 10 } },
+    { id: 'brouilleur', n: 'Brouilleur d’alarme', ico: '📡', cat: 'crime', shop: 'street', price: 850, keep: true, durability: 30, d: 'Neutralise la plupart des systèmes domestiques.', req: { repPegre: 20 } },
     { id: 'faux', n: 'Faux papiers', ico: '🪪', cat: 'crime', shop: 'street', price: 600, d: 'Consommable : annule une arrestation.', req: { repPegre: 15 } },
+    { id: 'radio', n: 'Scanner radio police', ico: '📻', cat: 'crime', shop: 'street', price: 950, keep: true, durability: 50, d: 'Capte les fréquences des patrouilles : un coup préparé se repère plus vite.', req: { repPegre: 18 } },
     { id: 'arme', n: 'Arme de poing', ico: '🔫', cat: 'crime', shop: 'street', price: 1800, keep: true, d: 'Ouvre les gros coups. Alourdit chaque condamnation.', req: { repPegre: 35 } },
     { id: 'came', n: 'Lot de marchandise', ico: '🧊', cat: 'crime', shop: 'street', price: 200, d: 'Stock à écouler. Se revend au détail, la nuit.', req: { repRue: 20 } },
     { id: 'herbe', n: 'Herbe', ico: '🌿', cat: 'crime', shop: 'street', price: 25, d: 'Se fume ou se revend au coin de la rue. Le risque le plus bas du marché.', req: { repRue: 8 },
@@ -279,7 +283,7 @@ window.LifeRPG = window.LifeRPG || {};
     { id: 'poudre', n: 'Poudre', ico: '🧂', cat: 'crime', shop: 'street', price: 140, d: 'La plus chère, la plus surveillée, la plus rentable si on ne se fait pas prendre.', req: { repRue: 25, repPegre: 10 },
       use: { moral: 32, energie: 34, sante: -14, hygiene: -6 }, addictRisk: 38 },
     { id: 'contrefacon', n: 'Lot de contrefaçons', ico: '👜', cat: 'crime', shop: 'street', price: 140, d: 'Sacs, montres, parfums. À vendre à la sauvette.', req: { repRue: 12 } },
-    { id: 'skimmer', n: 'Copieur de cartes', ico: '💳', cat: 'crime', shop: 'street', price: 1200, keep: true, d: 'Débloque la fraude bancaire.', req: { repPegre: 25, intelligence: 5 } }
+    { id: 'skimmer', n: 'Copieur de cartes', ico: '💳', cat: 'crime', shop: 'street', price: 1200, keep: true, durability: 45, d: 'Débloque la fraude bancaire.', req: { repPegre: 25, intelligence: 5 } }
   ];
   D.ITEM = {};
   D.ITEMS.forEach(function (i) { D.ITEM[i.id] = i; });
